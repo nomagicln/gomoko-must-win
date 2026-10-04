@@ -1,0 +1,152 @@
+/* ==========================================================================
+   墨韵五子棋 · 设计令牌
+   风格：宋式水墨 × 现代博物馆级暗色界面
+   —— 以墨为底、以宣纸为盘、以朱砂为印、以鎏金为饰
+   ========================================================================== */
+
+:root {
+  /* ---- 墨（背景层） ---- */
+  --ink-1000: #080706;
+  --ink-900: #0d0b09;
+  --ink-850: #12100d;
+  --ink-800: #17140f;
+  --ink-700: #201b15;
+  --ink-600: #2b241c;
+  --ink-500: #3a3126;
+  --ink-400: #4d4234;
+
+  /* ---- 宣纸（棋盘与浅色层） ---- */
+  --paper-050: #fbf5e6;
+  --paper-100: #f3ead4;
+  --paper-200: #e9dcbe;
+  --paper-300: #dccaa4;
+  --paper-400: #c9b489;
+  --paper-500: #b09a70;
+
+  /* ---- 鎏金 ---- */
+  --gold-200: #f2e3b6;
+  --gold-300: #e3cd90;
+  --gold-400: #c8a951;
+  --gold-500: #a98a35;
+  --gold-600: #7d6423;
+
+  /* ---- 朱砂 ---- */
+  --cinnabar-300: #e2705a;
+  --cinnabar-400: #cf4a33;
+  --cinnabar-500: #b93a2b;
+  --cinnabar-600: #8f2a1f;
+
+  /* ---- 青玉（辅助 / 防守语义色） ---- */
+  --jade-300: #7fc4ae;
+  --jade-400: #4f9c84;
+  --jade-500: #35705f;
+
+  /* ---- 语义色 ---- */
+  --bg: var(--ink-850);
+  --bg-elevated: rgba(32, 27, 21, 0.86);
+  --bg-panel: rgba(23, 20, 15, 0.72);
+  --bg-sunk: rgba(8, 7, 6, 0.5);
+  --text: #ece2cf;
+  --text-strong: #fbf5e6;
+  --text-dim: #a89b83;
+  --text-faint: #7c7261;
+  --border: rgba(200, 169, 81, 0.16);
+  --border-strong: rgba(200, 169, 81, 0.34);
+  --accent: var(--gold-400);
+  --accent-soft: rgba(200, 169, 81, 0.14);
+  --danger: var(--cinnabar-400);
+  --success: var(--jade-400);
+
+  /* ---- 阴影与光 ---- */
+  --shadow-sm: 0 2px 6px -1px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 12px 28px -10px rgba(0, 0, 0, 0.72);
+  --shadow-lg: 0 28px 60px -20px rgba(0, 0, 0, 0.85);
+  --shadow-gold: 0 0 0 1px rgba(200, 169, 81, 0.28), 0 10px 30px -12px rgba(200, 169, 81, 0.35);
+  --glow-gold: 0 0 24px -4px rgba(200, 169, 81, 0.5);
+  --glow-cinnabar: 0 0 28px -4px rgba(207, 74, 51, 0.55);
+
+  /* ---- 排版 ---- */
+  --font-display: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+  --font-body: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  --font-latin: 'Cinzel', 'Noto Serif SC', Georgia, serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  --step--2: clamp(0.69rem, 0.67rem + 0.1vw, 0.75rem);
+  --step--1: clamp(0.8rem, 0.77rem + 0.15vw, 0.875rem);
+  --step-0: clamp(0.95rem, 0.92rem + 0.2vw, 1rem);
+  --step-1: clamp(1.1rem, 1.03rem + 0.35vw, 1.25rem);
+  --step-2: clamp(1.35rem, 1.2rem + 0.7vw, 1.65rem);
+  --step-3: clamp(1.75rem, 1.45rem + 1.4vw, 2.5rem);
+  --step-4: clamp(2.2rem, 1.6rem + 2.6vw, 3.6rem);
+  --step-5: clamp(2.8rem, 1.8rem + 4.4vw, 5rem);
+
+  /* ---- 间距 ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 24px;
+  --sp-6: 32px;
+  --sp-7: 48px;
+  --sp-8: 64px;
+  --sp-9: 96px;
+
+  --radius-sm: 6px;
+  --radius: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 26px;
+  --radius-pill: 999px;
+
+  --dur-fast: 140ms;
+  --dur: 240ms;
+  --dur-slow: 420ms;
+  --ease-out: cubic-bezier(0.22, 0.68, 0.24, 1);
+  --ease-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.6, 0.05, 0.28, 0.99);
+
+  --header-h: 62px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+
+  color-scheme: dark;
+}
+
+/* ---- 宣纸主题（浅色） ---- */
+[data-theme='paper'] {
+  --bg: #e9dfc9;
+  --bg-elevated: rgba(251, 245, 230, 0.92);
+  --bg-panel: rgba(251, 245, 230, 0.8);
+  --bg-sunk: rgba(180, 163, 130, 0.22);
+  --text: #2a241b;
+  --text-strong: #15110b;
+  --text-dim: #6b604d;
+  --text-faint: #8d8168;
+  --border: rgba(93, 74, 33, 0.18);
+  --border-strong: rgba(93, 74, 33, 0.4);
+  --accent: var(--gold-600);
+  --accent-soft: rgba(125, 100, 35, 0.12);
+  --ink-1000: #efe6d2;
+  --ink-900: #f3ead4;
+  --ink-850: #e9dfc9;
+  --ink-800: #ded1b6;
+  --ink-700: #cfc0a2;
+  --ink-600: #bda98a;
+  --ink-500: #a08d70;
+  --ink-400: #85745c;
+  --shadow-sm: 0 2px 6px -1px rgba(93, 74, 33, 0.22);
+  --shadow-md: 0 12px 26px -12px rgba(93, 74, 33, 0.35);
+  --shadow-lg: 0 26px 54px -22px rgba(93, 74, 33, 0.42);
+  --shadow-gold: 0 0 0 1px rgba(125, 100, 35, 0.25), 0 10px 26px -14px rgba(125, 100, 35, 0.4);
+  --glow-gold: 0 0 22px -6px rgba(125, 100, 35, 0.45);
+  color-scheme: light;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 1ms;
+    --dur: 1ms;
+    --dur-slow: 1ms;
+  }
+}

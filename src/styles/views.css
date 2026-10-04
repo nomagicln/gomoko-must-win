@@ -1,0 +1,185 @@
+/* ==========================================================================
+   视图专属样式：页面标题、设置页、特性网格、联机、定式道场
+   ========================================================================== */
+
+.page-head {
+  padding: var(--sp-4) 0 var(--sp-5);
+  max-width: 62ch;
+}
+.page-title {
+  font-size: var(--step-4);
+  letter-spacing: 0.06em;
+  margin-bottom: var(--sp-3);
+}
+.page-lead {
+  color: var(--text-dim);
+  font-size: var(--step-1);
+  line-height: 1.75;
+  margin: 0;
+}
+
+/* ---- 首页统计 ---- */
+.stat {
+  min-width: 88px;
+}
+
+/* ---- 难度选择 ---- */
+.diff-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--sp-3);
+}
+.diff-card {
+  position: relative;
+  text-align: left;
+  padding: var(--sp-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform var(--dur) var(--ease-spring), border-color var(--dur) var(--ease-out),
+    box-shadow var(--dur) var(--ease-out), background-color var(--dur) var(--ease-out);
+  -webkit-tap-highlight-color: transparent;
+}
+.diff-card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(70% 60% at 50% 0%, rgba(200, 169, 81, 0.2), transparent 70%);
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease-out);
+  pointer-events: none;
+}
+.diff-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+}
+.diff-card.is-active {
+  border-color: rgba(200, 169, 81, 0.6);
+  background: linear-gradient(160deg, rgba(200, 169, 81, 0.16), rgba(200, 169, 81, 0.04));
+  box-shadow: var(--shadow-gold);
+}
+.diff-card.is-active::after {
+  opacity: 1;
+}
+.diff-card__name {
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  color: var(--text-strong);
+  letter-spacing: 0.12em;
+}
+.diff-card__en {
+  font-family: var(--font-latin);
+  font-size: 10px;
+  letter-spacing: 0.34em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: var(--sp-2);
+}
+.diff-card__strength {
+  display: inline-flex;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gold-300);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
+  margin-bottom: var(--sp-2);
+}
+.diff-card__desc {
+  font-size: var(--step--1);
+  color: var(--text-dim);
+  line-height: 1.7;
+}
+
+/* ---- 特性网格 ---- */
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: var(--sp-3);
+}
+.feature {
+  padding: var(--sp-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  transition: border-color var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
+}
+.feature:hover {
+  border-color: var(--border-strong);
+  transform: translateY(-2px);
+}
+.feature__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: var(--gold-300);
+  background: rgba(200, 169, 81, 0.1);
+  border: 1px solid rgba(200, 169, 81, 0.24);
+  margin-bottom: var(--sp-3);
+}
+.feature__title {
+  font-family: var(--font-display);
+  font-size: var(--step-1);
+  color: var(--text-strong);
+  margin-bottom: 6px;
+}
+.feature__desc {
+  font-size: var(--step--1);
+  color: var(--text-dim);
+  line-height: 1.75;
+}
+
+/* ---- 联机大厅 ---- */
+.net-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--sp-4);
+}
+@media (min-width: 860px) {
+  .net-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* ---- 定式道场 ---- */
+.lesson-col {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-4);
+  min-width: 0;
+}
+@media (min-width: 1024px) {
+  .lesson-col:first-child {
+    position: sticky;
+    top: calc(var(--header-h) + var(--safe-top) + var(--sp-4));
+    max-height: calc(100dvh - var(--header-h) - var(--sp-6));
+    overflow-y: auto;
+  }
+}
+
+@media (max-width: 860px) {
+  .page-title {
+    font-size: var(--step-3);
+  }
+  .page-lead {
+    font-size: var(--step-0);
+  }
+  .opening-grid {
+    grid-template-columns: repeat(auto-fill, minmax(94px, 1fr));
+  }
+}
+
+/* ---- 复盘提示浮层 ---- */
+.view--home .hero__board-inner {
+  cursor: pointer;
+}
+.view--home .hero__board-inner:focus-visible {
+  outline: 2px solid var(--gold-400);
+  outline-offset: 4px;
+}

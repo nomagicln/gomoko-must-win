@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.npm-cache/
+.vite/
+.shots/
+.chrome-profile/
+*.local
+.DS_Store
+*.log
+coverage/

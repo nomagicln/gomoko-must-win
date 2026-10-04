@@ -1,0 +1,17 @@
+{
+  "name": "墨韵五子棋 · Ink Gomoku",
+  "short_name": "墨韵五子棋",
+  "description": "纯前端五子棋道场：人机对战、在线联机、定式教学、复盘与 SGF 棋谱。",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#12100d",
+  "theme_color": "#12100d",
+  "lang": "zh-CN",
+  "categories": ["games", "education"],
+  "icons": [
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

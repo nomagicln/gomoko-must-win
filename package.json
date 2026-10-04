@@ -1,0 +1,23 @@
+{
+  "name": "gomoko-must-win",
+  "version": "1.0.0",
+  "private": true,
+  "description": "墨韵五子棋 · Ink Gomoku — 人机对战 / 在线联机 / 定式教学的纯前端五子棋道场",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "peerjs": "^1.5.4"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.3",
+    "vite": "^5.4.10",
+    "vitest": "^2.1.4"
+  }
+}

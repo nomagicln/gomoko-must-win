@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="ink">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>墨韵五子棋 · Ink Gomoku — 人机对战 · 在线联机 · 定式道场</title>
+    <meta
+      name="description"
+      content="墨韵五子棋：纯前端五子棋道场。四档强度的人机对战、房间码在线联机、26 种开局定式交互教学，支持复盘、SGF 棋谱与移动端完美体验。"
+    />
+    <meta name="keywords" content="五子棋,连珠,gomoku,renju,定式,开局,人机对战,在线对战,棋谱" />
+    <meta name="author" content="nomagicln" />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="theme-color" content="#12100d" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#efe6d3" media="(prefers-color-scheme: light)" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="墨韵五子棋" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="墨韵五子棋" />
+    <meta property="og:title" content="墨韵五子棋 · Ink Gomoku" />
+    <meta
+      property="og:description"
+      content="四档强度人机对战 · 房间码在线联机 · 26 种开局定式交互教学 · 复盘与 SGF 棋谱。"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./favicon.svg" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=Cinzel:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+    />
+
+    <style>
+      /* ---- 首屏引导：不依赖 JS 也能看到品牌，避免白屏 ---- */
+      html,
+      body {
+        margin: 0;
+        background: #12100d;
+      }
+      #boot {
+        position: fixed;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(120% 90% at 50% 0%, #241f18 0%, #12100d 60%, #0b0a08 100%);
+        z-index: 9999;
+        transition: opacity 0.6s ease, visibility 0.6s;
+        font-family: 'Noto Serif SC', 'Songti SC', serif;
+      }
+      #boot[hidden] {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+      }
+      .boot-mark {
+        text-align: center;
+        color: #e8dcc0;
+        animation: bootIn 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+      }
+      .boot-stone {
+        width: 84px;
+        height: 84px;
+        margin: 0 auto 22px;
+        border-radius: 50%;
+        background: radial-gradient(circle at 34% 28%, #6f6a63 0%, #26231f 42%, #0a0908 100%);
+        box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.9), inset -4px -6px 14px rgba(0, 0, 0, 0.6),
+          inset 4px 6px 12px rgba(255, 255, 255, 0.14);
+        animation: stoneDrop 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+      }
+      .boot-title {
+        font-size: 26px;
+        letter-spacing: 0.42em;
+        text-indent: 0.42em;
+        font-weight: 700;
+      }
+      .boot-sub {
+        margin-top: 10px;
+        font-family: 'IBM Plex Mono', ui-monospace, monospace;
+        font-size: 11px;
+        letter-spacing: 0.3em;
+        color: #c8a951;
+        text-transform: uppercase;
+      }
+      @keyframes bootIn {
+        from {
+          opacity: 0;
+          transform: translateY(14px);
+        }
+      }
+      @keyframes stoneDrop {
+        from {
+          opacity: 0;
+          transform: translateY(-46px) scale(0.86);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .boot-mark,
+        .boot-stone {
+          animation: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="boot" role="status" aria-live="polite" aria-label="正在加载墨韵五子棋">
+      <div class="boot-mark">
+        <div class="boot-stone" aria-hidden="true"></div>
+        <div class="boot-title">墨韵五子棋</div>
+        <div class="boot-sub">Ink&nbsp;·&nbsp;Gomoku</div>
+      </div>
+    </div>
+
+    <div id="app" aria-live="polite"></div>
+
+    <noscript>
+      <div style="padding: 48px; color: #e8dcc0; font-family: serif; text-align: center">
+        <h1>需要启用 JavaScript</h1>
+        <p>墨韵五子棋是纯前端应用，请在浏览器设置中启用 JavaScript 后重新打开本页。</p>
+      </div>
+    </noscript>
+
+    <script type="module" src="/src/main.ts"></script>
+    <script>
+      // 兜底：若模块加载失败（离线、CDN 拦截等），不要让引导层永久遮挡页面
+      window.addEventListener('error', function (e) {
+        if (e && e.target && e.target.tagName === 'SCRIPT') {
+          var b = document.getElementById('boot');
+          if (b) b.setAttribute('hidden', '');
+        }
+      }, true);
+    </script>
+  </body>
+</html>
