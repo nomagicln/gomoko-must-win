@@ -249,3 +249,62 @@ describe('难度预设', () => {
     }
   });
 });
+
+describe('19 路棋盘与整局自对弈', () => {
+  it('19 路棋盘天元与星位正确', () => {
+    const out = search(emptyCells(19), BLACK, { size: 19, maxDepth: 2, timeMs: 300 });
+    expect(out.move).toEqual({ x: 9, y: 9 });
+  });
+
+  it('19 路棋盘上 AI 能正常搜出着法', () => {
+    const cells = emptyCells(19);
+    const seed: Array<[number, number, number]> = [
+      [9, 9, BLACK],
+      [10, 10, WHITE],
+      [8, 8, BLACK],
+      [9, 10, WHITE],
+      [10, 9, BLACK],
+      [8, 10, WHITE],
+    ];
+    for (const [x, y, c] of seed) put(cells, 19, x, y, c);
+    const out = search(cells, BLACK, { size: 19, maxDepth: 4, timeMs: 900 });
+    expect(out.move).not.toBeNull();
+    expect(cells[out.move!.y * 19 + out.move!.x]).toBe(0);
+  });
+
+  it('连珠规则下 19 路也能识别禁手点', () => {
+    const cells = emptyCells(19);
+    for (const p of [
+      [8, 8],
+      [10, 8],
+      [9, 7],
+      [9, 9],
+    ]) {
+      put(cells, 19, p[0], p[1], BLACK);
+    }
+    const f = forbiddenAt(cells, 19, 9, 8);
+    expect(f?.kind).toBe('double-three');
+  });
+
+  it('入门档 AI 自对弈能整局下完且不崩溃', () => {
+    const board = new Board({ size: 15 });
+    let plies = 0;
+    while (!board.isOver && plies < 225) {
+      const out = search(board.rawCells(), board.turn, {
+        size: 15,
+        maxDepth: 2,
+        timeMs: 120,
+        branchLimit: 6,
+        randomness: 0.7,
+        useVcf: false,
+        vcfDepth: 0,
+      });
+      expect(out.move).not.toBeNull();
+      const r = board.place(out.move!.x, out.move!.y);
+      expect(r.ok).toBe(true);
+      plies++;
+    }
+    expect(board.isOver).toBe(true);
+    expect(plies).toBeGreaterThan(8);
+  }, 120000);
+});

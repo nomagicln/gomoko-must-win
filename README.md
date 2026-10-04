@@ -144,6 +144,15 @@ npm run build      # 类型检查 + 生产构建
 npm run preview    # 预览构建产物
 ```
 
+`scripts/` 下是无头 Chrome 验收脚本（开发期使用，不参与站点构建）：
+
+```bash
+# 先启动预览服务与带 CDP 的 Chrome（chrome --headless=new --remote-debugging-port=9222 ...）
+node scripts/screenshot.mjs <url> <out.png> [宽] [高] [等待毫秒]   # 截图 + 收集 console 错误
+node scripts/e2e.mjs                                              # 人机对战全链路（真实点击棋盘）
+node scripts/e2e-online.mjs                                       # 双标签页 WebRTC 联机全链路
+```
+
 ---
 
 ## 部署
