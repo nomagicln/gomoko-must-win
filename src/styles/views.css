@@ -48,7 +48,7 @@
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(70% 60% at 50% 0%, rgba(200, 169, 81, 0.2), transparent 70%);
+  background: radial-gradient(70% 60% at 50% 0%, rgba(200, 205, 210, 0.2), transparent 70%);
   opacity: 0;
   transition: opacity var(--dur) var(--ease-out);
   pointer-events: none;
@@ -58,8 +58,8 @@
   border-color: var(--border-strong);
 }
 .diff-card.is-active {
-  border-color: rgba(200, 169, 81, 0.6);
-  background: linear-gradient(160deg, rgba(200, 169, 81, 0.16), rgba(200, 169, 81, 0.04));
+  border-color: rgba(200, 205, 210, 0.6);
+  background: linear-gradient(160deg, rgba(200, 205, 210, 0.16), rgba(200, 205, 210, 0.04));
   box-shadow: var(--shadow-gold);
 }
 .diff-card.is-active::after {
@@ -83,7 +83,7 @@
   display: inline-flex;
   font-family: var(--font-mono);
   font-size: 11px;
-  color: var(--gold-300);
+  color: var(--gold-text);
   border: 1px solid var(--border);
   border-radius: var(--radius-pill);
   padding: 1px 8px;
@@ -118,9 +118,9 @@
   border-radius: 12px;
   display: grid;
   place-items: center;
-  color: var(--gold-300);
-  background: rgba(200, 169, 81, 0.1);
-  border: 1px solid rgba(200, 169, 81, 0.24);
+  color: var(--gold-text);
+  background: rgba(200, 205, 210, 0.1);
+  border: 1px solid rgba(200, 205, 210, 0.24);
   margin-bottom: var(--sp-3);
 }
 .feature__title {
@@ -154,12 +154,34 @@
   gap: var(--sp-4);
   min-width: 0;
 }
+/*
+ * 定式道场：滚动时先钉住左侧开局列表，再钉住棋盘，
+ * 这样右侧的长篇讲解怎么滚都能同时看到「选哪个」与「盘面长什么样」。
+ */
 @media (min-width: 1024px) {
-  .lesson-col:first-child {
+  .lesson-layout {
+    align-items: start;
+  }
+  .lesson-col--openings {
     position: sticky;
     top: calc(var(--header-h) + var(--safe-top) + var(--sp-4));
-    max-height: calc(100dvh - var(--header-h) - var(--sp-6));
+    max-height: calc(100dvh - var(--header-h) - var(--safe-top) - var(--sp-6));
     overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 4px;
+    scrollbar-gutter: stable;
+  }
+  .lesson-stage {
+    position: sticky;
+    top: calc(var(--header-h) + var(--safe-top) + var(--sp-4) + 12px);
+    max-width: none;
+    margin: 0;
+    max-height: calc(100dvh - var(--header-h) - var(--safe-top) - var(--sp-6));
+    overflow: hidden;
+  }
+  .lesson-stage .board-frame {
+    max-width: min(100%, calc(100dvh - var(--header-h) - var(--safe-top) - 210px));
+    margin-inline: auto;
   }
 }
 

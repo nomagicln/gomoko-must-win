@@ -6,7 +6,7 @@ import type { Difficulty } from './ai/engine';
 import type { ClockMode } from './ui/clock';
 import { BLACK, WHITE, type Move, type Player, type RuleSet } from './core/types';
 import { sound } from './ui/audio';
-import { append, clear, el, icon, store, toast } from './ui/dom';
+import { append, clear, el, githubIcon, icon, store, toast } from './ui/dom';
 import { ALL_OPENINGS } from './ai/book';
 import { HomeView } from './views/home';
 import { LessonsView } from './views/lessons';
@@ -116,7 +116,7 @@ export function startApp(root: HTMLElement): void {
   const topbar = el('header', { class: 'topbar' });
   const main = el('main', { id: 'view' });
   const tabbar = el('nav', { class: 'tabbar', 'aria-label': '主导航' });
-  append(shell, [topbar, main, tabbar, buildFooter()]);
+  append(shell, [topbar, main, tabbar]);
   clear(root);
   root.appendChild(shell);
 
@@ -188,7 +188,24 @@ export function startApp(root: HTMLElement): void {
       },
       icon(prefs.sound ? 'volume' : 'mute', 18),
     );
-    append(topbar, [brand, nav, el('div', { class: 'topbar__spacer' }), el('div', { class: 'topbar__actions' }, themeBtn, soundBtn)]);
+    const githubLink = el(
+      'a',
+      {
+        class: 'btn btn--icon btn--ghost topbar__github',
+        href: 'https://github.com/nomagicln/gomoko-must-win',
+        target: '_blank',
+        rel: 'noopener noreferrer',
+        title: '在 GitHub 上查看源码',
+        'aria-label': '在 GitHub 上查看源码',
+      },
+      githubIcon(18),
+    );
+    append(topbar, [
+      brand,
+      nav,
+      el('div', { class: 'topbar__spacer' }),
+      el('div', { class: 'topbar__actions' }, githubLink, themeBtn, soundBtn),
+    ]);
   };
 
   const buildTabbar = () => {
@@ -251,7 +268,15 @@ export function startApp(root: HTMLElement): void {
       case 'local':
         view = new PlayView(ctx, {
           mode: 'local',
-          config: { black: 'human', white: 'human', humanColor: BLACK, size: prefs.size, rules: prefs.rules },
+          config: {
+            black: 'human',
+            white: 'human',
+            humanColor: BLACK,
+            hotseat: true,
+            size: prefs.size,
+            rules: prefs.rules,
+            clockMode: prefs.clock,
+          },
         });
         break;
       case 'online':
@@ -334,7 +359,7 @@ function sealMark(): SVGSVGElement {
   rect.setAttribute('width', '38');
   rect.setAttribute('height', '38');
   rect.setAttribute('rx', '7');
-  rect.setAttribute('fill', '#b93a2b');
+  rect.setAttribute('class', 'brand__seal-bg');
   const text = document.createElementNS(ns, 'text');
   text.setAttribute('x', '20');
   text.setAttribute('y', '26');
@@ -342,7 +367,7 @@ function sealMark(): SVGSVGElement {
   text.setAttribute('font-size', '20');
   text.setAttribute('font-family', '"Noto Serif SC", serif');
   text.setAttribute('font-weight', '700');
-  text.setAttribute('fill', '#fdf3e6');
+  text.setAttribute('class', 'brand__seal-text');
   text.textContent = '墨';
   const inner = document.createElementNS(ns, 'rect');
   inner.setAttribute('x', '4.5');
@@ -350,23 +375,10 @@ function sealMark(): SVGSVGElement {
   inner.setAttribute('width', '31');
   inner.setAttribute('height', '31');
   inner.setAttribute('rx', '4');
+  inner.setAttribute('class', 'brand__seal-inner');
   inner.setAttribute('fill', 'none');
-  inner.setAttribute('stroke', 'rgba(253,243,230,0.55)');
   inner.setAttribute('stroke-width', '1.2');
   svg.append(rect, text, inner);
   return svg;
 }
 
-function buildFooter(): HTMLElement {
-  return el(
-    'footer',
-    { class: 'footer' },
-    el('div', { text: '墨韵五子棋 · 纯前端实现，棋谱只留在你的设备上' }),
-    el(
-      'div',
-      { style: { marginTop: '6px' } },
-      el('span', { text: '人机对战 · 在线联机 · 26 种开局定式 · ' }),
-      el('a', { href: 'https://github.com/nomagicln/gomoko-must-win', target: '_blank', rel: 'noopener', text: 'GitHub' }),
-    ),
-  );
-}

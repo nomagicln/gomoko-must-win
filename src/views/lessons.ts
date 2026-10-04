@@ -59,9 +59,9 @@ export class LessonsView implements View {
     const frame = el('div', { class: 'board-frame' }, this.canvas);
     this.boardInfo = el('div', { class: 'card__body stack', style: { paddingTop: '0' } });
 
-    const left = el('aside', { class: 'lesson-col' });
-    const center = el('div', { class: 'stage' }, frame, this.buildControls(), this.boardInfo);
-    const right = el('aside', { class: 'lesson-col' });
+    const left = el('aside', { class: 'lesson-col lesson-col--openings' });
+    const center = el('div', { class: 'stage lesson-stage' }, frame, this.buildControls(), this.boardInfo);
+    const right = el('aside', { class: 'lesson-col lesson-col--detail' });
 
     append(this.root, [
       el(

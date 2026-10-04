@@ -27,8 +27,10 @@ export interface GameConfig {
   difficulty: Difficulty;
   black: Seat;
   white: Seat;
-  /** 本地玩家的棋子颜色（用于提示与文案） */
+  /** 屏前玩家的棋子颜色（用于提示与胜负文案） */
   humanColor: Player;
+  /** 同屏双人：双方都是人类，终局文案取中立表达 */
+  hotseat?: boolean;
 }
 
 export interface MoveInfo {
@@ -428,6 +430,12 @@ export class GameController {
     this.handleGameOver(winner === BLACK ? 'black-win' : 'white-win', null);
   }
 
+  /** 从屏前玩家的角度给出这一局的结果，用于终局泼墨选字 */
+  private outcomeFor(winner: Player): 'win' | 'lose' | 'neutral' {
+    if (this.config.hotseat) return 'neutral';
+    return winner === this.config.humanColor ? 'win' : 'lose';
+  }
+
   private handleTimeout(loser: Player): void {
     if (this.board.isOver) return;
     const winner = other(loser);
@@ -455,14 +463,23 @@ export class GameController {
     } else if (win) {
       const winner = win.player === BLACK ? '黑棋' : '白棋';
       const loser = win.player === BLACK ? '白棋' : '黑棋';
-      victoryFX({ winner, loser, humanWon });
-      toast(humanWon ? '五连成线，承让了' : '五连成线，这一局对手拿下', humanWon ? 'win' : 'danger', 3600);
+      victoryFX({ winner, loser, outcome: this.outcomeFor(win.player) });
+      toast(
+        this.config.hotseat
+          ? `${winner}五连成线`
+          : humanWon
+            ? '五连成线，承让了'
+            : '五连成线，这一局对手拿下',
+        this.config.hotseat ? 'win' : humanWon ? 'win' : 'danger',
+        3600,
+      );
     } else {
       const winner = status === 'black-win' ? BLACK : WHITE;
       victoryFX({
         winner: winner === BLACK ? '黑棋' : '白棋',
         loser: winner === BLACK ? '白棋' : '黑棋',
-        humanWon: winner === this.config.humanColor,
+        outcome: this.outcomeFor(winner),
+        resigned: true,
       });
       toast(`${winner === BLACK ? '黑棋' : '白棋'}中盘胜（对方认输）`, 'info', 3000);
     }

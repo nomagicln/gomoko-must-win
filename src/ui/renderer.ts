@@ -152,13 +152,13 @@ export class BoardRenderer {
       x: move.x,
       y: move.y,
       start: now(),
-      color: 'rgba(200,169,81,0.85)',
+      color: 'rgba(222, 226, 230, 0.8)',
     });
   }
 
   flashWin(line: Point[]): void {
     this.winAnim = { line: [...line], start: now() };
-    for (const p of line) this.ripples.push({ x: p.x, y: p.y, start: now() + 200, color: 'rgba(207,74,51,0.9)' });
+    for (const p of line) this.ripples.push({ x: p.x, y: p.y, start: now() + 200, color: 'rgba(236, 240, 244, 0.85)' });
     this.ensureLoop();
   }
 
@@ -319,7 +319,7 @@ export class BoardRenderer {
     for (let i = 0; i < n; i++) {
       const pos = this.origin + i * this.cell;
       const edge = i === 0 || i === n - 1;
-      g.strokeStyle = edge ? 'rgba(48,38,26,0.72)' : 'rgba(56,45,32,0.52)';
+      g.strokeStyle = edge ? 'rgba(38, 42, 47, 0.74)' : 'rgba(48, 53, 59, 0.5)';
       g.lineWidth = edge ? lw * 1.5 : lw;
       g.beginPath();
       g.moveTo(inner, pos);
@@ -332,7 +332,7 @@ export class BoardRenderer {
     }
 
     // 5) 星位
-    g.fillStyle = 'rgba(48,38,26,0.78)';
+    g.fillStyle = 'rgba(38, 42, 47, 0.78)';
     for (let y = 0; y < n; y++) {
       for (let x = 0; x < n; x++) {
         if (!isStar(x, y, n)) continue;
@@ -341,9 +341,9 @@ export class BoardRenderer {
         g.fill();
       }
     }
-    // 天元用朱砂点出，作为「眼」
+    // 天元用焦墨点出，作为「眼」
     const c0 = (n - 1) / 2;
-    g.fillStyle = 'rgba(185,58,43,0.72)';
+    g.fillStyle = 'rgba(24, 27, 31, 0.8)';
     g.beginPath();
     g.arc(this.origin + c0 * this.cell, this.origin + c0 * this.cell, Math.max(2, this.cell * 0.085), 0, TAU);
     g.fill();
@@ -472,13 +472,26 @@ export class BoardRenderer {
     ctx.save();
     for (const h of heat) {
       const { x, y } = this.toCanvas(h);
-      const r = this.cell * (0.3 + h.weight * 0.52) * (0.6 + 0.4 * ease);
-      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      const r = this.cell * (0.32 + h.weight * 0.54) * (0.62 + 0.38 * ease);
       const rgb = SIDE_RGB[h.side ?? BLACK];
       const color = `${rgb[0]},${rgb[1]},${rgb[2]}`;
-      const strong = h.kind === 'win' ? 1.35 : h.kind === 'defense' ? 0.8 : 1;
-      g.addColorStop(0, `rgba(${color},${Math.min(0.5, 0.34 * ease * (0.4 + h.weight * 0.6) * strong)})`);
-      g.addColorStop(0.7, `rgba(${color},${0.12 * ease * strong})`);
+      if (h.kind === 'defense') {
+        // 对方（白方）势力：空心墨环
+        ctx.globalAlpha = (0.3 + h.weight * 0.42) * ease;
+        ctx.strokeStyle = `rgba(${color},0.9)`;
+        ctx.lineWidth = Math.max(1.4, this.cell * 0.1);
+        ctx.setLineDash([5, 5]);
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, TAU);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        continue;
+      }
+      const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+      const strong = h.kind === 'win' ? 1.4 : 1;
+      g.addColorStop(0, `rgba(${color},${Math.min(0.42, 0.3 * ease * (0.4 + h.weight * 0.6) * strong)})`);
+      g.addColorStop(0.65, `rgba(${color},${0.1 * ease * strong})`);
       g.addColorStop(1, `rgba(${color},0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -513,7 +526,7 @@ export class BoardRenderer {
       ctx.strokeStyle = color;
       ctx.lineWidth = Math.max(1.4, this.cell * (m.kind === 'win' ? 0.095 : 0.07));
       ctx.globalAlpha = 0.55 + 0.45 * pulse;
-      if (m.kind === 'three' || m.kind === 'block') ctx.setLineDash([4, 4]);
+      if (m.kind === 'three' || m.kind === 'block' || sideDashed(m.side ?? BLACK)) ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.arc(x, y, r, 0, TAU);
       ctx.stroke();
@@ -668,19 +681,23 @@ export class BoardRenderer {
   private drawLastMove(ctx: CanvasRenderingContext2D): void {
     const last = this.state.lastMove;
     if (!last || this.state.winLine) return;
+    // 黑子上用纸白环、白子上用焦墨环：不依赖颜色也能看清
+    const onBlack = last.player === BLACK;
+    const ring = onBlack ? 'rgba(246, 244, 238, 0.92)' : 'rgba(24, 27, 31, 0.92)';
+    const core = onBlack ? 'rgba(255, 255, 255, 0.95)' : 'rgba(10, 11, 13, 0.95)';
     const c = this.toCanvas(last);
     const r = this.cell * 0.455;
     const phase = this.reduced ? 0 : (now() % 1800) / 1800;
-    const a = 0.7 + 0.3 * Math.sin(phase * TAU);
+    const a = 0.72 + 0.28 * Math.sin(phase * TAU);
     ctx.save();
     ctx.globalAlpha = a;
-    ctx.strokeStyle = '#cf4a33';
+    ctx.strokeStyle = ring;
     ctx.lineWidth = Math.max(1.6, this.cell * 0.075);
     ctx.beginPath();
     ctx.arc(c.x, c.y, r * 0.66, 0, TAU);
     ctx.stroke();
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = '#e2705a';
+    ctx.globalAlpha = 0.95;
+    ctx.fillStyle = core;
     ctx.beginPath();
     ctx.arc(c.x, c.y, Math.max(1.6, this.cell * 0.075), 0, TAU);
     ctx.fill();
@@ -698,7 +715,7 @@ export class BoardRenderer {
     this.drawStone(ctx, c.x, c.y, r, this.state.moves.length % 2 === 0 ? BLACK : WHITE, 0.6, 0);
     ctx.restore();
     ctx.save();
-    ctx.strokeStyle = 'rgba(200,169,81,0.75)';
+    ctx.strokeStyle = 'rgba(226, 230, 234, 0.75)';
     ctx.lineWidth = Math.max(1, this.cell * 0.045);
     ctx.beginPath();
     ctx.arc(c.x, c.y, r, 0, TAU);
@@ -706,50 +723,57 @@ export class BoardRenderer {
     ctx.restore();
   }
 
+  /**
+   * 胜利笔锋：沿五连方向画一道两端收细、边缘毛糙的毛笔笔触。
+   * 先铺一层纸白的托底，再压上焦墨，这样压在黑子上也看得见。
+   */
   private drawWinLine(ctx: CanvasRenderingContext2D): void {
     if (!this.winAnim) return;
     const { line, start } = this.winAnim;
     if (line.length < 2) return;
-    const t = this.reduced ? 1 : Math.min(1, (now() - start) / 700);
+    const t = this.reduced ? 1 : Math.min(1, (now() - start) / 760);
     const eased = 1 - Math.pow(1 - t, 4);
     const a = this.toCanvas(line[0]);
     const b = this.toCanvas(line[line.length - 1]);
-    const ex = a.x + (b.x - a.x) * eased;
-    const ey = a.y + (b.y - a.y) * eased;
 
-    ctx.save();
-    ctx.lineCap = 'round';
-    // 光晕
-    ctx.strokeStyle = 'rgba(207,74,51,0.35)';
-    ctx.lineWidth = this.cell * 0.42;
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(ex, ey);
-    ctx.stroke();
-    // 笔锋
-    const grad = ctx.createLinearGradient(a.x, a.y, b.x, b.y);
-    grad.addColorStop(0, 'rgba(226,112,90,0.9)');
-    grad.addColorStop(0.5, 'rgba(185,58,43,0.95)');
-    grad.addColorStop(1, 'rgba(226,112,90,0.9)');
-    ctx.strokeStyle = grad;
-    ctx.lineWidth = Math.max(2, this.cell * 0.1);
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(ex, ey);
-    ctx.stroke();
-
-    // 胜利棋子脉冲
-    const pulse = this.reduced ? 0 : 0.5 + 0.5 * Math.sin((now() / 620) * TAU);
-    for (const p of line) {
-      const c = this.toCanvas(p);
-      ctx.globalAlpha = 0.25 + 0.45 * pulse;
-      ctx.fillStyle = 'rgba(200,169,81,0.9)';
+    const stroke = (color: string, width: number, grow: number): void => {
+      const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+      const nx = -(b.y - a.y) / len;
+      const ny = (b.x - a.x) / len;
+      const ex = a.x + (b.x - a.x) * eased;
+      const ey = a.y + (b.y - a.y) * eased;
+      const steps = 46;
+      const top: Array<[number, number]> = [];
+      const bot: Array<[number, number]> = [];
+      for (let i = 0; i <= steps; i++) {
+        const u = i / steps;
+        const px = a.x + (ex - a.x) * u;
+        const py = a.y + (ey - a.y) * u;
+        // 两端收锋、中段饱满；再用一点确定性抖动做出毛边
+        const profile = Math.pow(Math.sin(Math.PI * Math.min(0.999, u * 0.9 + 0.05)), 0.6);
+        const j = Math.sin(i * 12.9898) * 43758.5453;
+        const noise = (j - Math.floor(j)) - 0.45;
+        const w = width * profile * (1 + noise * 0.34) + grow;
+        top.push([px + nx * w, py + ny * w]);
+        bot.push([px - nx * w, py - ny * w]);
+      }
       ctx.beginPath();
-      ctx.arc(c.x, c.y, this.cell * 0.455 * (1.02 + 0.06 * pulse), 0, TAU);
-      ctx.strokeStyle = 'rgba(230,205,144,0.9)';
-      ctx.lineWidth = Math.max(1.4, this.cell * 0.05);
-      ctx.stroke();
-    }
+      ctx.moveTo(top[0][0], top[0][1]);
+      for (let i = 1; i < top.length; i++) ctx.lineTo(top[i][0], top[i][1]);
+      for (let i = bot.length - 1; i >= 0; i--) ctx.lineTo(bot[i][0], bot[i][1]);
+      ctx.closePath();
+      ctx.fillStyle = color;
+      ctx.fill();
+    };
+
+    const half = this.cell * 0.24;
+    ctx.save();
+    ctx.globalAlpha = 0.92;
+    stroke('rgba(249, 247, 241, 0.85)', half * 1.5, this.cell * 0.09); // 纸白托底
+    ctx.globalAlpha = 1;
+    stroke('rgba(18, 20, 23, 0.95)', half, 0); // 焦墨笔锋
+    // 笔锋扫过时的高光，像湿墨未干
+    stroke('rgba(120, 126, 132, 0.35)', half * 0.5, 0);
     ctx.restore();
   }
 
@@ -761,7 +785,7 @@ export class BoardRenderer {
     const per = 260;
     const shown = this.reduced ? path.length : Math.max(1, Math.floor(elapsed / per) + 1);
     ctx.save();
-    ctx.strokeStyle = 'rgba(200,169,81,0.55)';
+    ctx.strokeStyle = 'rgba(210, 216, 222, 0.6)';
     ctx.setLineDash([5, 6]);
     ctx.lineWidth = Math.max(1.2, this.cell * 0.05);
     ctx.beginPath();
@@ -783,7 +807,7 @@ export class BoardRenderer {
       ctx.beginPath();
       ctx.arc(c.x, c.y, r, 0, TAU);
       ctx.fill();
-      ctx.strokeStyle = 'rgba(200,169,81,0.95)';
+      ctx.strokeStyle = 'rgba(226, 230, 234, 0.9)';
       ctx.lineWidth = Math.max(1.2, this.cell * 0.05);
       ctx.stroke();
       ctx.fillStyle = i % 2 === 0 ? '#f2e3b6' : '#3a3126';
@@ -827,12 +851,12 @@ export class BoardRenderer {
 
     // 指示十字与圆环
     ctx.save();
-    ctx.strokeStyle = 'rgba(200,169,81,0.95)';
+    ctx.strokeStyle = 'rgba(232, 236, 240, 0.95)';
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(mx, my, R, 0, TAU);
     ctx.stroke();
-    ctx.strokeStyle = 'rgba(207,74,51,0.9)';
+    ctx.strokeStyle = 'rgba(18, 20, 23, 0.9)';
     ctx.lineWidth = Math.max(1, this.cell * 0.05);
     ctx.beginPath();
     ctx.arc(mx, my, this.cell * 0.44, 0, TAU);
@@ -851,14 +875,18 @@ export class BoardRenderer {
  * 定式谱着与禁手保持独立语义（金 / 朱砂叉）。
  */
 export const SIDE_RGB: Record<Player, readonly [number, number, number]> = {
-  [BLACK]: [224, 101, 74],
-  [WHITE]: [111, 208, 180],
+  /* 黑方 = 焦墨（实环），白方 = 淡墨（虚环）—— 明度与线型双重区分，不依赖颜色 */
+  [BLACK]: [38, 42, 47],
+  [WHITE]: [138, 144, 150],
 };
 
 export function sideColor(side: Player, alpha = 0.92): string {
   const [r, g, b] = SIDE_RGB[side];
   return `rgba(${r},${g},${b},${alpha})`;
 }
+
+/** 白方的落位提示统一走虚环，避免与黑方混淆 */
+const sideDashed = (side: Player): boolean => side === WHITE;
 
 function markerColor(kind: MarkerKind, side: Player): string {
   switch (kind) {

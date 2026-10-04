@@ -1,5 +1,8 @@
 /**
- * 泼墨特效验收：用真实点击摆出「杀局」与「五连」两种局面并截图。
+ * 泼墨特效验收：
+ *   A. 人机/双人局面下摆出「杀局」→ 期待泼墨红「杀」
+ *   B. 同屏双人分出胜负 → 期待只出现「承让」一字
+ *   C. 人机对战中让 AI 取胜 → 期待只出现「败北」一字
  * 开发期使用，不参与站点构建。
  */
 import { writeFileSync, mkdirSync } from 'node:fs';
@@ -32,7 +35,8 @@ ws.addEventListener('message', (ev) => {
   }
 });
 await new Promise((r) => ws.addEventListener('open', r, { once: true }));
-const evaluate = async (e) => (await send('Runtime.evaluate', { expression: e, returnByValue: true, awaitPromise: true })).result.value;
+const evaluate = async (e) =>
+  (await send('Runtime.evaluate', { expression: e, returnByValue: true, awaitPromise: true })).result.value;
 const click = async (x, y) => {
   await send('Input.dispatchMouseEvent', { type: 'mousePressed', x, y, button: 'left', buttons: 1, clickCount: 1 });
   await new Promise((r) => setTimeout(r, 30));
@@ -43,65 +47,89 @@ const shot = async (name) => {
   mkdirSync('.shots', { recursive: true });
   writeFileSync(`.shots/${name}.png`, Buffer.from(s.data, 'base64'));
 };
-
 await send('Runtime.enable');
 await send('Page.enable');
 await send('Network.enable');
 await send('Network.setCacheDisabled', { cacheDisabled: true });
 await send('Emulation.setDeviceMetricsOverride', { width: 1600, height: 900, deviceScaleFactor: 1, mobile: false });
 
-async function playSequence(moves, tag) {
-  await send('Page.navigate', { url: `${BASE}?fx=${Date.now()}#/local` });
+async function openSolo(hash, difficultyLabel) {
+  await send('Page.navigate', { url: `${BASE}?fx=${Date.now()}${hash}` });
   await new Promise((r) => setTimeout(r, 2200));
+  if (difficultyLabel) {
+    await evaluate(
+      `[...document.querySelectorAll('.diff-card')].find(c => c.textContent.includes('${difficultyLabel}')).click()`,
+    );
+    await evaluate(`[...document.querySelectorAll('button')].find(x => x.textContent.includes('开始对局')).click()`);
+    await new Promise((r) => setTimeout(r, 1500));
+  }
   const geo = JSON.parse(
     await evaluate(`(() => { const c = document.querySelector('.board-canvas'); const r = c.getBoundingClientRect(); return JSON.stringify({left:r.left, top:r.top, w:r.width}); })()`),
   );
   const origin = geo.w * 0.058;
   const cell = (geo.w - origin * 2) / 14;
-  for (const [gx, gy] of moves) {
-    await click(geo.left + origin + cell * gx, geo.top + origin + cell * gy);
-    await new Promise((r) => setTimeout(r, 260));
-  }
-  const movesText = await evaluate(`document.querySelector('.movelist')?.innerText.replace(/\\n/g,' ') ?? ''`);
-  const badge = await evaluate(`document.querySelector('.board-badge')?.innerText ?? ''`);
-  console.log(`[${tag}] 棋谱: ${JSON.stringify(movesText.slice(0, 70))} | 浮层: ${JSON.stringify(badge)}`);
-  return { movesText, badge };
+  return { geo, origin, cell };
 }
+const tapCell = async (ctx, gx, gy) => {
+  await click(ctx.geo.left + ctx.origin + ctx.cell * gx, ctx.geo.top + ctx.origin + ctx.cell * gy);
+};
+const glyphs = async () =>
+  JSON.parse(
+    await evaluate(`JSON.stringify([...document.querySelectorAll('.fx-glyph__char:not(.fx-glyph__char--bleed)')].map(n => n.textContent))`),
+  );
+const waitForGameOver = async (maxMs = 30000) => {
+  const started = Date.now();
+  while (Date.now() - started < maxMs) {
+    await new Promise((r) => setTimeout(r, 600));
+    const badge = await evaluate(`document.querySelector('.board-badge')?.innerText ?? ''`);
+    if (badge.includes('胜') || badge.includes('和棋')) return true;
+  }
+  return false;
+};
 
-// ---- 局面一：黑棋在第 9 手形成双活三（杀局） ----
-const kill = [
-  [5, 7], [0, 0],
-  [6, 7], [1, 0],
-  [7, 5], [2, 0],
-  [7, 6], [3, 0],
-  [7, 7],
-];
-const killState = await playSequence(kill, '杀局');
+/* ---------- A. 杀局 ---------- */
+const solo = await openSolo('#/local');
+const KILL = [ [5,7],[0,0], [6,7],[1,0], [7,5],[2,0], [7,6],[3,0], [7,7] ];
+for (const [x, y] of KILL) {
+  await tapCell(solo, x, y);
+  await new Promise((r) => setTimeout(r, 240));
+}
 await new Promise((r) => setTimeout(r, 420));
+const killGlyphs = await glyphs();
 await shot('fx-kill');
-const killGlyph = await evaluate(`document.querySelector('.fx-glyph__char')?.textContent ?? ''`);
-console.log('   泼墨大字:', JSON.stringify(killGlyph));
+console.log('A 杀局 →', JSON.stringify(killGlyphs));
 
-// ---- 局面二：黑棋第 9 手连成五子（胜利） ----
-const win = [
-  [5, 7], [0, 0],
-  [6, 7], [1, 0],
-  [7, 7], [2, 0],
-  [8, 7], [3, 0],
-  [9, 7],
-];
-const winState = await playSequence(win, '五连');
-await new Promise((r) => setTimeout(r, 1500));
+/* ---------- B. 同屏双人分出胜负（中立视角，只出「承让」） ---------- */
+const b = await openSolo('#/local');
+const WIN = [ [5,7],[0,0], [6,7],[1,0], [7,7],[2,0], [8,7],[3,0], [9,7] ];
+for (const [x, y] of WIN) {
+  await tapCell(b, x, y);
+  await new Promise((r) => setTimeout(r, 240));
+}
+await new Promise((r) => setTimeout(r, 1400));
+const hotseatGlyphs = await glyphs();
 await shot('fx-victory');
-const glyphs = await evaluate(
-  `JSON.stringify([...document.querySelectorAll('.fx-glyph__char:not(.fx-glyph__char--bleed)')].map(n => n.textContent))`,
-);
-console.log('   泼墨大字:', glyphs);
+console.log('B 同屏双人终局 →', JSON.stringify(hotseatGlyphs));
+
+/* ---------- C. 人机对战落败（只出「败北」） ---------- */
+const c = await openSolo('#/ai', '宗师');
+await tapCell(c, 7, 7);
+await new Promise((r) => setTimeout(r, 2200));
+await evaluate(`[...document.querySelectorAll('button')].find(x => x.textContent.includes('认输')).click()`);
+await new Promise((r) => setTimeout(r, 600));
+await evaluate(`[...document.querySelectorAll('.modal button')].find(x => x.textContent.includes('确认认输')).click()`);
+await new Promise((r) => setTimeout(r, 1100));
+const loseGlyphs = await glyphs();
+await shot('fx-defeat');
+const badge = await evaluate(`document.querySelector('.board-badge')?.innerText ?? ''`);
+console.log(`C 人机对战认输（结果「${badge}」）→`, JSON.stringify(loseGlyphs));
 
 const ok =
-  killState.movesText.includes('H8') &&
-  winState.badge.includes('胜') &&
-  glyphs.includes('承让');
+  killGlyphs.includes('杀') &&
+  hotseatGlyphs.length === 1 &&
+  hotseatGlyphs[0] === '承让' &&
+  loseGlyphs.length === 1 &&
+  loseGlyphs[0] === '败北';
 console.log('ERRORS:', JSON.stringify(errors));
-console.log(ok ? '✅ 泼墨杀局 / 承让败北 特效链路通过' : '❌ 特效未按预期触发');
+console.log(ok ? '✅ 泼墨杀 / 承让 / 败北 链路通过' : '❌ 特效未按预期触发');
 process.exit(ok ? 0 : 1);

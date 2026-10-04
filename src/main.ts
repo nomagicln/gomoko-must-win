@@ -3,6 +3,7 @@
  */
 
 import './styles/tokens.css';
+import './styles/brush.css';
 import './styles/base.css';
 import './styles/app.css';
 import './styles/views.css';

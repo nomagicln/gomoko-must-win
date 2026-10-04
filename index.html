@@ -11,8 +11,8 @@
     <meta name="keywords" content="五子棋,连珠,gomoku,renju,定式,开局,人机对战,在线对战,棋谱" />
     <meta name="author" content="nomagicln" />
     <meta name="color-scheme" content="dark light" />
-    <meta name="theme-color" content="#12100d" media="(prefers-color-scheme: dark)" />
-    <meta name="theme-color" content="#efe6d3" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111213" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#ece7db" media="(prefers-color-scheme: light)" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -34,9 +34,14 @@
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+    <!-- 全站主体：霞鹜文楷（基于 Klee 的屏幕楷体）。只取常规与加粗两档，省掉 light 与等宽体 -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/lxgwwenkai-regular.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont@1.7.0/lxgwwenkai-bold.css" />
+    <!-- 标题与泼墨用字：思源宋（兜底）+ 毛笔字体 -->
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&family=Ma+Shan+Zheng&family=Zhi+Mang+Xing&family=Long+Cang&family=Cinzel:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Ma+Shan+Zheng&family=Zhi+Mang+Xing&family=Long+Cang&family=Cinzel:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
     />
 
     <style>
@@ -44,7 +49,7 @@
       html,
       body {
         margin: 0;
-        background: #12100d;
+        background: #111213;
       }
       #boot {
         position: fixed;
@@ -52,10 +57,10 @@
         display: grid;
         place-items: center;
         background:
-          radial-gradient(120% 90% at 50% 0%, #241f18 0%, #12100d 60%, #0b0a08 100%);
+          radial-gradient(120% 90% at 50% 0%, #1c1e20 0%, #111213 60%, #0a0b0c 100%);
         z-index: 9999;
         transition: opacity 0.6s ease, visibility 0.6s;
-        font-family: 'Noto Serif SC', 'Songti SC', serif;
+        font-family: 'LXGW WenKai', 'Kaiti SC', 'STKaiti', 'KaiTi', '楷体', 'Noto Serif SC', serif;
       }
       #boot[hidden] {
         opacity: 0;
@@ -64,7 +69,7 @@
       }
       .boot-mark {
         text-align: center;
-        color: #e8dcc0;
+        color: #e6e7e8;
         animation: bootIn 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
       }
       .boot-stone {
@@ -88,7 +93,7 @@
         font-family: 'IBM Plex Mono', ui-monospace, monospace;
         font-size: 11px;
         letter-spacing: 0.3em;
-        color: #c8a951;
+        color: #b9bec4;
         text-transform: uppercase;
       }
       @keyframes bootIn {
@@ -112,6 +117,20 @@
     </style>
   </head>
   <body>
+    <!-- 毛笔边缘滤镜：用湍流置换把手绘感带给规整的圆角 -->
+    <svg class="ink-filters" aria-hidden="true" focusable="false" width="0" height="0">
+      <defs>
+        <filter id="ink-rough" x="-30%" y="-70%" width="160%" height="240%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.028 0.17" numOctaves="3" seed="7" result="noise" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="5.5" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+        <filter id="ink-rough-lg" x="-16%" y="-40%" width="132%" height="180%">
+          <feTurbulence type="fractalNoise" baseFrequency="0.018 0.05" numOctaves="3" seed="11" result="noise" />
+          <feDisplacementMap in="SourceGraphic" in2="noise" scale="10" xChannelSelector="R" yChannelSelector="G" />
+        </filter>
+      </defs>
+    </svg>
+
     <div id="boot" role="status" aria-live="polite" aria-label="正在加载墨韵五子棋">
       <div class="boot-mark">
         <div class="boot-stone" aria-hidden="true"></div>

@@ -13,7 +13,9 @@ export type SoundName =
   | 'tick'
   | 'click'
   /** 毛笔泼墨：笔锋扫过 + 落纸闷响 */
-  | 'brush';
+  | 'brush'
+  /** 败北：低沉的两声磬响 */
+  | 'loss';
 
 const PENTATONIC = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783.99];
 
@@ -157,6 +159,11 @@ export class SoundEngine {
         break;
       case 'click':
         this.burst(t, 1500, 1.6, 0.16, 0.04);
+        break;
+      case 'loss':
+        this.pluck(t, 196, 0.26, 1.4);
+        this.pluck(t + 0.26, 146.83, 0.22, 1.8);
+        this.burst(t, 420, 0.6, 0.16, 0.5);
         break;
       case 'brush': {
         // 带通噪声由高频扫到低频 —— 笔锋划过纸面的沙沙声

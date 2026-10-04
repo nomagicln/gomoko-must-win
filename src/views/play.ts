@@ -696,15 +696,18 @@ export class PlayView implements View {
       return;
     }
 
-    // 桌面端：抽屉收起，左「设置」中「棋盘」右「提示与棋谱」
+    // 桌面端：抽屉收起。宽屏三栏 —— 左「对局设置 + 战术提示」/ 中「棋盘」/ 右「回合 + 局势 + 棋谱」
     this.toggleSheetSilently(false);
     this.playEl.classList.toggle('is-3col', threeCol);
     this.leftCol.hidden = !threeCol;
-    for (const k of order) {
+    const leftOrder = ['tools', 'notes'];
+    const rightOrder = ['turn', 'think', 'moves'];
+    const order2 = threeCol ? [...leftOrder, ...rightOrder] : order;
+    for (const k of order2) {
       const card = this.cards[k];
       if (!card) continue;
       card.hidden = false;
-      if (k === 'tools' && threeCol) this.leftCol.appendChild(card);
+      if (threeCol && leftOrder.includes(k)) this.leftCol.appendChild(card);
       else this.rightCol.appendChild(card);
     }
   }

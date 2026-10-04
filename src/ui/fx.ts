@@ -38,6 +38,13 @@ function hexToRgb(hex: string): Rgb {
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
 
+/** 从主题令牌里读取当前主题的墨色（深色主题为反白墨，浅色主题为焦墨） */
+function themeInk(name: '--splash-ink' | '--splash-glyph', fallback: string): string {
+  if (typeof document === 'undefined') return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
@@ -269,7 +276,7 @@ export function inkGlyph(
   if (opts.replace && slashNode?.isConnected) slashNode.remove();
 
   const size = opts.size ?? 'slash';
-  const color = opts.color ?? '#b93a2b';
+  const color = opts.color ?? themeInk('--splash-ink', '#1b1c1e');
   const node = el('div', { class: `fx-glyph fx-glyph--${size}` });
   node.style.setProperty('--glyph-color', color);
   node.style.setProperty('--glyph-x', `${(opts.x ?? 0.5) * 100}%`);
@@ -312,39 +319,54 @@ export function inkGlyph(
 export function killSlash(label: string, opts: { who?: string } = {}): void {
   sound.play('brush');
   shake(1);
-  inkBloom({ x: window.innerWidth / 2, y: window.innerHeight * 0.42, color: 'rgba(185,58,43,0.34)' });
+  inkBloom({ x: window.innerWidth / 2, y: window.innerHeight * 0.42, color: 'rgba(210, 216, 222, 0.22)' });
   const sub = [opts.who, label].filter(Boolean).join(' · ');
-  slashNode = inkGlyph('杀', sub, { color: '#c0392b', size: 'slash', x: 0.5, y: 0.42, angle: -7, replace: true });
+  slashNode = inkGlyph('杀', sub, { size: 'slash', x: 0.5, y: 0.42, angle: -7, replace: true });
   window.setTimeout(() => sound.play('seal'), 240);
 }
 
-/** 胜利：泼墨「承让」+ 角落「败北」 */
-export function victorySplash(opts: { winner: string; loser: string; humanWon: boolean }): void {
+/**
+ * 终局泼墨：只出一字，取决于屏前玩家这一局的处境。
+ *   win     → 「承让」（朱砂）：赢家谦辞
+ *   lose    → 「败北」（焦墨）：输家自认
+ *   neutral → 「承让」（同屏双人 / 旁观，只标注赢家）
+ */
+export function victorySplash(opts: {
+  winner: string;
+  loser: string;
+  outcome: 'win' | 'lose' | 'neutral';
+  /** 是否为中盘胜（认输 / 超时） */
+  resigned?: boolean;
+}): void {
+  const won = opts.outcome !== 'lose';
   sound.play('brush');
-  shake(1.4);
-  inkBloom({ color: 'rgba(200,169,81,0.32)' });
-  inkGlyph('承让', `${opts.winner} 五连`, {
-    color: '#b93a2b',
-    size: 'victory',
-    x: 0.5,
-    y: 0.31,
-    spread: 0.3,
-    angle: -5,
-    delay: 260,
-  });
-  window.setTimeout(() => {
-    sound.play('brush');
-    inkGlyph('败北', opts.loser, {
-      color: '#5a4c3a',
-      size: 'second',
+  shake(opts.outcome === 'lose' ? 0.6 : 1.3);
+  inkBloom({ color: won ? 'rgba(224, 228, 233, 0.24)' : 'rgba(140, 146, 152, 0.2)' });
+
+  const sub = `${opts.winner} ${opts.resigned ? '中盘胜' : '五连'}`;
+  if (won) {
+    inkGlyph('承让', sub, {
+      size: 'victory',
       x: 0.5,
-      y: 0.74,
-      spread: 0.17,
-      angle: 6,
-      holdMs: 3000,
+      y: 0.33,
+      spread: 0.32,
+      angle: -5,
+      delay: 200,
+      holdMs: 3400,
     });
-  }, 620);
-  window.setTimeout(() => sound.play('win'), 700);
+    window.setTimeout(() => sound.play('win'), 620);
+  } else {
+    inkGlyph('败北', sub, {
+      size: 'victory',
+      x: 0.5,
+      y: 0.35,
+      spread: 0.24,
+      angle: 5,
+      delay: 160,
+      holdMs: 3400,
+    });
+    window.setTimeout(() => sound.play('loss'), 520);
+  }
 }
 
 /** 兼容旧调用：形成杀局 */
@@ -353,7 +375,12 @@ export function forcedWinFX(label: string, who?: string): void {
 }
 
 /** 兼容旧调用：胜利 */
-export function victoryFX(opts: { winner: string; loser: string; humanWon: boolean }): void {
+export function victoryFX(opts: {
+  winner: string;
+  loser: string;
+  outcome: 'win' | 'lose' | 'neutral';
+  resigned?: boolean;
+}): void {
   victorySplash(opts);
 }
 

@@ -1,73 +1,79 @@
 /* ==========================================================================
    墨韵五子棋 · 设计令牌
-   风格：宋式水墨 × 现代博物馆级暗色界面
-   —— 以墨为底、以宣纸为盘、以朱砂为印、以鎏金为饰
+   风格：水墨单色（五墨）× 宣纸
+   —— 焦墨为底、宣纸为字、淡墨为界、留白为饰。
+      全站不出现彩色，只有墨的五个层次与纸的明度。
    ========================================================================== */
 
 :root {
-  /* ---- 墨（背景层） ---- */
-  --ink-1000: #080706;
-  --ink-900: #0d0b09;
-  --ink-850: #12100d;
-  --ink-800: #17140f;
-  --ink-700: #201b15;
-  --ink-600: #2b241c;
-  --ink-500: #3a3126;
-  --ink-400: #4d4234;
+  /* ---- 五墨色阶：焦 · 浓 · 重 · 淡 · 清 ---- */
+  --mo-jiao: #0a0a09;
+  --mo-nong: #17181a;
+  --mo-zhong: #2c2f33;
+  --mo-dan: #6d7379;
+  --mo-qing: #b9bec4;
 
-  /* ---- 宣纸（棋盘与浅色层） ---- */
-  --paper-050: #fbf5e6;
-  --paper-100: #f3ead4;
-  --paper-200: #e9dcbe;
-  --paper-300: #dccaa4;
-  --paper-400: #c9b489;
-  --paper-500: #b09a70;
+  /* ---- 墨（深色主题背景层） ---- */
+  --ink-1000: #08090a;
+  --ink-900: #0c0d0e;
+  --ink-850: #111213;
+  --ink-800: #16181a;
+  --ink-700: #1e2124;
+  --ink-600: #282b2f;
+  --ink-500: #363a3f;
+  --ink-400: #474c52;
 
-  /* ---- 鎏金 ---- */
-  --gold-200: #f2e3b6;
-  --gold-300: #e3cd90;
-  --gold-400: #c8a951;
-  --gold-500: #a98a35;
-  --gold-600: #7d6423;
+  /* ---- 宣纸 ---- */
+  --paper-050: #faf8f3;
+  --paper-100: #f3efe6;
+  --paper-200: #e8e2d4;
+  --paper-300: #d8d0bd;
+  --paper-400: #bfb6a0;
+  --paper-500: #a19982;
 
-  /* ---- 朱砂 ---- */
-  --cinnabar-300: #e2705a;
-  --cinnabar-400: #cf4a33;
-  --cinnabar-500: #b93a2b;
-  --cinnabar-600: #8f2a1f;
-
-  /* ---- 青玉（辅助 / 防守语义色） ---- */
-  --jade-300: #7fc4ae;
-  --jade-400: #4f9c84;
-  --jade-500: #35705f;
+  /* ---- 兼容别名：语义已统一为墨色，名称保留以兼容既有样式 ---- */
+  --gold-200: #e9eaeb;
+  --gold-300: #cfd3d7;
+  --gold-400: #a7acb1;
+  --gold-500: #7c8187;
+  --gold-600: #4c5157;
+  --cinnabar-300: #d6d9dc;
+  --cinnabar-400: #b0b5ba;
+  --cinnabar-500: #8a9096;
+  --cinnabar-600: #62676d;
+  --jade-300: #c9cdd1;
+  --jade-400: #a4a9ae;
+  --jade-500: #7b8085;
 
   /* ---- 语义色 ---- */
   --bg: var(--ink-850);
-  --bg-elevated: rgba(32, 27, 21, 0.86);
-  --bg-panel: rgba(23, 20, 15, 0.72);
-  --bg-sunk: rgba(8, 7, 6, 0.5);
-  --text: #ece2cf;
-  --text-strong: #fbf5e6;
-  --text-dim: #a89b83;
-  --text-faint: #7c7261;
-  --border: rgba(200, 169, 81, 0.16);
-  --border-strong: rgba(200, 169, 81, 0.34);
-  --accent: var(--gold-400);
-  --accent-soft: rgba(200, 169, 81, 0.14);
-  --danger: var(--cinnabar-400);
-  --success: var(--jade-400);
+  --bg-elevated: rgba(22, 24, 26, 0.88);
+  --bg-panel: rgba(17, 18, 19, 0.74);
+  --bg-sunk: rgba(8, 9, 10, 0.52);
+  --text: #e6e7e8;
+  --text-strong: #f6f6f5;
+  --text-dim: #9ba0a5;
+  --text-faint: #83888e;
+  --border: rgba(200, 205, 210, 0.13);
+  --border-strong: rgba(200, 205, 210, 0.3);
+  --accent: var(--mo-qing);
+  --accent-soft: rgba(200, 205, 210, 0.11);
+  --danger: var(--mo-qing);
+  --success: var(--mo-qing);
 
-  /* ---- 阴影与光 ---- */
-  --shadow-sm: 0 2px 6px -1px rgba(0, 0, 0, 0.5);
-  --shadow-md: 0 12px 28px -10px rgba(0, 0, 0, 0.72);
-  --shadow-lg: 0 28px 60px -20px rgba(0, 0, 0, 0.85);
-  --shadow-gold: 0 0 0 1px rgba(200, 169, 81, 0.28), 0 10px 30px -12px rgba(200, 169, 81, 0.35);
-  --glow-gold: 0 0 24px -4px rgba(200, 169, 81, 0.5);
-  --glow-cinnabar: 0 0 28px -4px rgba(207, 74, 51, 0.55);
+  /* ---- 阴影 ---- */
+  --shadow-sm: 0 2px 6px -1px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 12px 28px -10px rgba(0, 0, 0, 0.75);
+  --shadow-lg: 0 28px 60px -20px rgba(0, 0, 0, 0.88);
+  --shadow-gold: 0 0 0 1px rgba(200, 205, 210, 0.22), 0 10px 30px -12px rgba(0, 0, 0, 0.8);
+  --glow-gold: 0 0 24px -4px rgba(210, 216, 222, 0.28);
+  --glow-cinnabar: 0 0 28px -4px rgba(210, 216, 222, 0.24);
 
-  /* ---- 排版 ---- */
-  --font-display: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
-  --font-body: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', system-ui, sans-serif;
+  /* ---- 排版：全站楷体 ---- */
+  --font-kai: 'LXGW WenKai', 'Kaiti SC', 'STKaiti', 'KaiTi', '楷体', 'Kaiti TC', 'DFKai-SB',
+    'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+  --font-display: var(--font-kai);
+  --font-body: var(--font-kai);
   --font-latin: 'Cinzel', 'Noto Serif SC', Georgia, serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
 
@@ -110,36 +116,100 @@
   --safe-left: env(safe-area-inset-left, 0px);
   --safe-right: env(safe-area-inset-right, 0px);
 
+  /* ---- 语义文字色（保证 4.5:1 以上） ---- */
+  --gold-text: var(--paper-200);
+  --gold-text-strong: var(--paper-100);
+  --danger-text: var(--paper-100);
+  --side-black-text: #e4e5e6;
+  --side-white-text: #a7acb1;
+  --hero-grad: linear-gradient(120deg, var(--paper-050) 6%, var(--paper-200) 52%, var(--mo-dan) 100%);
+  --seal-text: var(--paper-100);
+  --seal-sub: var(--paper-300);
+
+  /* 泼墨大字（深色主题 = 反白墨，即「纸白为字」） */
+  --splash-ink: #1b1c1e;
+  --splash-glyph: var(--paper-050);
+  --splash-rim: rgba(255, 255, 255, 0.4);
+  /* 品牌墨印：深色主题白文（纸底墨字），浅色主题朱文（墨底纸字） */
+  --seal-mark-bg: var(--paper-100);
+  --seal-mark-fg: #14161a;
+  --seal-mark-inner: rgba(20, 22, 26, 0.42);
+
+  /* 选中态「毛笔划过」：真笔触轮廓 + 墨色填充 */
+  /* 笔触遮罩由 scripts/gen_brush.py 生成，见 brush.css */
+  --brush-fill: linear-gradient(
+    100deg,
+    rgba(214, 219, 224, 0.3) 0%,
+    rgba(214, 219, 224, 0.13) 44%,
+    rgba(232, 236, 240, 0.24) 72%,
+    rgba(214, 219, 224, 0.09) 100%
+  );
+  --brush-fill-soft: linear-gradient(
+    100deg,
+    rgba(214, 219, 224, 0.17) 0%,
+    rgba(214, 219, 224, 0.06) 56%,
+    rgba(214, 219, 224, 0.13) 100%
+  );
+
   color-scheme: dark;
 }
 
-/* ---- 宣纸主题（浅色） ---- */
+/* ---- 宣纸主题（浅色）：纸白为底、浓墨为字 ---- */
 [data-theme='paper'] {
-  --bg: #e9dfc9;
-  --bg-elevated: rgba(251, 245, 230, 0.92);
-  --bg-panel: rgba(251, 245, 230, 0.8);
-  --bg-sunk: rgba(180, 163, 130, 0.22);
-  --text: #2a241b;
-  --text-strong: #15110b;
-  --text-dim: #6b604d;
-  --text-faint: #8d8168;
-  --border: rgba(93, 74, 33, 0.18);
-  --border-strong: rgba(93, 74, 33, 0.4);
-  --accent: var(--gold-600);
-  --accent-soft: rgba(125, 100, 35, 0.12);
-  --ink-1000: #efe6d2;
-  --ink-900: #f3ead4;
-  --ink-850: #e9dfc9;
-  --ink-800: #ded1b6;
-  --ink-700: #cfc0a2;
-  --ink-600: #bda98a;
-  --ink-500: #a08d70;
-  --ink-400: #85745c;
-  --shadow-sm: 0 2px 6px -1px rgba(93, 74, 33, 0.22);
-  --shadow-md: 0 12px 26px -12px rgba(93, 74, 33, 0.35);
-  --shadow-lg: 0 26px 54px -22px rgba(93, 74, 33, 0.42);
-  --shadow-gold: 0 0 0 1px rgba(125, 100, 35, 0.25), 0 10px 26px -14px rgba(125, 100, 35, 0.4);
-  --glow-gold: 0 0 22px -6px rgba(125, 100, 35, 0.45);
+  --bg: #ece7db;
+  --bg-elevated: rgba(250, 248, 243, 0.94);
+  --bg-panel: rgba(250, 248, 243, 0.82);
+  --bg-sunk: rgba(160, 150, 130, 0.16);
+  --text: #21232a;
+  --text-strong: #0c0d10;
+  --text-dim: #5c6167;
+  --text-faint: #5f646b;
+  --border: rgba(40, 44, 50, 0.16);
+  --border-strong: rgba(40, 44, 50, 0.34);
+  --accent: #3a3f45;
+  --accent-soft: rgba(40, 44, 50, 0.08);
+  --danger: #22262b;
+  --success: #22262b;
+  --ink-1000: #f2ede1;
+  --ink-900: #f6f2e8;
+  --ink-850: #ece7db;
+  --ink-800: #e0d9c9;
+  --ink-700: #d2c9b4;
+  --ink-600: #c0b59c;
+  --ink-500: #a39a84;
+  --ink-400: #857d6a;
+  --shadow-sm: 0 2px 6px -1px rgba(50, 45, 35, 0.2);
+  --shadow-md: 0 12px 26px -12px rgba(50, 45, 35, 0.32);
+  --shadow-lg: 0 26px 54px -22px rgba(50, 45, 35, 0.4);
+  --shadow-gold: 0 0 0 1px rgba(40, 44, 50, 0.18), 0 10px 26px -14px rgba(50, 45, 35, 0.35);
+  --glow-gold: 0 0 22px -6px rgba(40, 44, 50, 0.3);
+  --gold-text: #3c4147;
+  --gold-text-strong: #23272c;
+  --danger-text: #23272c;
+  --side-black-text: #2a2e33;
+  --side-white-text: #6b7178;
+  --hero-grad: linear-gradient(120deg, #14161a 6%, #3f444a 48%, #7d838a 100%);
+  --seal-text: #16181c;
+  --seal-sub: #3c4147;
+  --splash-ink: #131417;
+  --splash-glyph: #101114;
+  --splash-rim: rgba(255, 255, 255, 0.5);
+  --seal-mark-bg: #16181c;
+  --seal-mark-fg: var(--paper-100);
+  --seal-mark-inner: rgba(250, 248, 243, 0.45);
+  --brush-fill: linear-gradient(
+    100deg,
+    rgba(40, 44, 50, 0.24) 0%,
+    rgba(40, 44, 50, 0.1) 46%,
+    rgba(70, 76, 84, 0.2) 74%,
+    rgba(40, 44, 50, 0.08) 100%
+  );
+  --brush-fill-soft: linear-gradient(
+    100deg,
+    rgba(40, 44, 50, 0.15) 0%,
+    rgba(40, 44, 50, 0.055) 58%,
+    rgba(40, 44, 50, 0.12) 100%
+  );
   color-scheme: light;
 }
 
