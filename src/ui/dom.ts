@@ -114,6 +114,14 @@ export function icon(name: keyof typeof PATHS | string, size = 18): SVGSVGElemen
 
 let toastHost: HTMLElement | null = null;
 
+export function clearToasts(): void {
+  if (!toastHost) return;
+  for (const node of Array.from(toastHost.children)) {
+    node.classList.add('toast--out');
+    window.setTimeout(() => node.remove(), 260);
+  }
+}
+
 export function toast(message: string, kind: 'info' | 'win' | 'danger' = 'info', ms = 2600): void {
   if (!toastHost) {
     toastHost = el('div', { class: 'toasts', role: 'status', 'aria-live': 'polite' });

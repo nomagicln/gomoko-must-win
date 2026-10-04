@@ -3,6 +3,7 @@
  */
 
 import type { Difficulty } from './ai/engine';
+import type { ClockMode } from './ui/clock';
 import { BLACK, WHITE, type Move, type Player, type RuleSet } from './core/types';
 import { sound } from './ui/audio';
 import { append, clear, el, icon, store, toast } from './ui/dom';
@@ -19,6 +20,8 @@ export interface Prefs {
   showNumbers: boolean;
   hints: boolean;
   difficulty: Difficulty;
+  /** 棋钟模式 */
+  clock: ClockMode;
   humanColor: Player;
   rules: RuleSet;
   size: number;
@@ -46,6 +49,7 @@ const DEFAULT_PREFS: Prefs = {
   showNumbers: false,
   hints: true,
   difficulty: 'hard',
+  clock: 'none',
   humanColor: BLACK,
   rules: 'freestyle',
   size: 15,
@@ -210,6 +214,7 @@ export function startApp(root: HTMLElement): void {
 
   const render = () => {
     currentRoute = parseRoute();
+    document.documentElement.dataset.route = currentRoute.name;
     current?.destroy?.();
     clear(main);
     buildTopbar();

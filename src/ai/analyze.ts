@@ -196,6 +196,8 @@ export interface PointNote {
   point: { x: number; y: number };
   text: string;
   tone: 'win' | 'must' | 'danger' | 'good';
+  /** 该提示属于哪一方，UI 据此着色（黑=朱砂，白=青玉） */
+  side?: Player;
 }
 
 /** 中文战况解说：把当前局面的战术要点讲给玩家听 */

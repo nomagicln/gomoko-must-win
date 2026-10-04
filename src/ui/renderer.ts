@@ -18,6 +18,8 @@ export interface HeatCell {
   /** 归一化 0~1 */
   weight: number;
   kind: 'attack' | 'defense' | 'win';
+  /** 该热区属于哪一方（据此着色） */
+  side?: Player;
 }
 
 export type MarkerKind = 'three' | 'four' | 'open-four' | 'win' | 'block' | 'book' | 'forbidden';
@@ -26,6 +28,8 @@ export interface MarkerCell {
   x: number;
   y: number;
   kind: MarkerKind;
+  /** 该暗示属于哪一方：黑棋朱砂、白棋青玉 */
+  side?: Player;
 }
 
 export interface RenderState {
@@ -470,14 +474,11 @@ export class BoardRenderer {
       const { x, y } = this.toCanvas(h);
       const r = this.cell * (0.3 + h.weight * 0.52) * (0.6 + 0.4 * ease);
       const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-      const color =
-        h.kind === 'win'
-          ? '207,74,51'
-          : h.kind === 'defense'
-            ? '79,156,132'
-            : '200,169,81';
-      g.addColorStop(0, `rgba(${color},${0.34 * ease * (0.4 + h.weight * 0.6)})`);
-      g.addColorStop(0.7, `rgba(${color},${0.12 * ease})`);
+      const rgb = SIDE_RGB[h.side ?? BLACK];
+      const color = `${rgb[0]},${rgb[1]},${rgb[2]}`;
+      const strong = h.kind === 'win' ? 1.35 : h.kind === 'defense' ? 0.8 : 1;
+      g.addColorStop(0, `rgba(${color},${Math.min(0.5, 0.34 * ease * (0.4 + h.weight * 0.6) * strong)})`);
+      g.addColorStop(0.7, `rgba(${color},${0.12 * ease * strong})`);
       g.addColorStop(1, `rgba(${color},0)`);
       ctx.fillStyle = g;
       ctx.beginPath();
@@ -495,7 +496,7 @@ export class BoardRenderer {
     ctx.save();
     for (const m of markers) {
       const { x, y } = this.toCanvas(m);
-      const color = markerColor(m.kind);
+      const color = markerColor(m.kind, m.side ?? BLACK);
       if (m.kind === 'forbidden') {
         ctx.strokeStyle = color;
         ctx.lineWidth = Math.max(1.6, this.cell * 0.09);
@@ -508,17 +509,26 @@ export class BoardRenderer {
         ctx.stroke();
         continue;
       }
-      const r = this.cell * (m.kind === 'win' ? 0.42 : 0.34) * (0.92 + 0.08 * pulse);
+      const r = this.cell * (m.kind === 'win' ? 0.44 : 0.34) * (0.92 + 0.08 * pulse);
       ctx.strokeStyle = color;
-      ctx.lineWidth = Math.max(1.4, this.cell * 0.07);
+      ctx.lineWidth = Math.max(1.4, this.cell * (m.kind === 'win' ? 0.095 : 0.07));
       ctx.globalAlpha = 0.55 + 0.45 * pulse;
+      if (m.kind === 'three' || m.kind === 'block') ctx.setLineDash([4, 4]);
       ctx.beginPath();
       ctx.arc(x, y, r, 0, TAU);
       ctx.stroke();
-      if (m.kind === 'four' || m.kind === 'open-four') {
+      ctx.setLineDash([]);
+      if (m.kind === 'win') {
+        ctx.globalAlpha = 0.42 * pulse;
+        ctx.beginPath();
+        ctx.arc(x, y, r * 1.35, 0, TAU);
+        ctx.lineWidth = Math.max(1, this.cell * 0.05);
+        ctx.stroke();
+      }
+      if (m.kind === 'four' || m.kind === 'open-four' || m.kind === 'win') {
         ctx.globalAlpha = 0.9;
         ctx.beginPath();
-        ctx.arc(x, y, Math.max(1.8, this.cell * 0.09), 0, TAU);
+        ctx.arc(x, y, Math.max(1.8, this.cell * (m.kind === 'win' ? 0.13 : 0.09)), 0, TAU);
         ctx.fillStyle = color;
         ctx.fill();
       }
@@ -831,17 +841,35 @@ export class BoardRenderer {
   }
 }
 
-function markerColor(kind: MarkerKind): string {
+/**
+ * 阵营语义色：
+ *   黑棋 = 朱砂（暖红）　白棋 = 青玉（冷绿）
+ * 威胁等级则交给「形状 + 明度」表达：
+ *   成五 / 必胜 → 实心粗环 + 内核
+ *   冲四       → 实心环 + 内核
+ *   活三       → 细虚线环
+ * 定式谱着与禁手保持独立语义（金 / 朱砂叉）。
+ */
+export const SIDE_RGB: Record<Player, readonly [number, number, number]> = {
+  [BLACK]: [224, 101, 74],
+  [WHITE]: [111, 208, 180],
+};
+
+export function sideColor(side: Player, alpha = 0.92): string {
+  const [r, g, b] = SIDE_RGB[side];
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function markerColor(kind: MarkerKind, side: Player): string {
   switch (kind) {
     case 'win':
-      return 'rgba(207,74,51,0.95)';
-    case 'four':
+      return sideColor(side, 1);
     case 'open-four':
-      return 'rgba(207,74,51,0.85)';
+    case 'four':
+      return sideColor(side, 0.9);
     case 'three':
-      return 'rgba(200,169,81,0.92)';
     case 'block':
-      return 'rgba(79,156,132,0.92)';
+      return sideColor(side, 0.78);
     case 'book':
       return 'rgba(230,205,144,0.85)';
     case 'forbidden':

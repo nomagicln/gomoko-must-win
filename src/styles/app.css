@@ -478,10 +478,60 @@
   gap: var(--sp-4);
   align-items: start;
 }
+
+/*
+ * 桌面端对弈页：整页不滚动，棋盘永久固定在中央，
+ * 左「设置 / 工具」、右「提示 / 局势 / 棋谱」各自独立滚动。
+ */
 @media (min-width: 1024px) {
-  .play {
-    grid-template-columns: minmax(0, 1fr) 356px;
-    gap: var(--sp-5);
+  .view--play {
+    height: calc(100dvh - var(--header-h) - var(--safe-top));
+    max-width: 1680px;
+    padding-top: var(--sp-4);
+    padding-bottom: var(--sp-4);
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .view--play .play {
+    flex: 1;
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr) 352px;
+    gap: var(--sp-4);
+    align-items: stretch;
+  }
+  .view--play .play.is-3col {
+    grid-template-columns: 296px minmax(0, 1fr) 352px;
+  }
+  .play-col {
+    display: flex;
+    flex-direction: column;
+    gap: var(--sp-3);
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding-right: 4px;
+    scrollbar-gutter: stable;
+  }
+  /* 关键：卡片保持自身高度，由容器滚动，而不是被压扁裁切 */
+  .play-col > * {
+    flex: 0 0 auto;
+  }
+  .view--play .stage {
+    max-width: none;
+    margin: 0;
+    height: 100%;
+    min-height: 0;
+    justify-content: center;
+    overflow: hidden;
+  }
+  .view--play .board-frame {
+    width: 100%;
+    max-width: min(100%, calc(100dvh - var(--header-h) - var(--safe-top) - 168px));
+    margin-inline: auto;
+  }
+  .play-col--left[hidden] {
+    display: none;
   }
 }
 
@@ -491,7 +541,7 @@
   flex-direction: column;
   gap: var(--sp-3);
   min-width: 0;
-  /* 让棋盘连同操作条在常见笔记本高度内完整可见 */
+  /* 移动端：让棋盘连同操作条一屏放下 */
   max-width: min(100%, calc(100dvh - 200px));
   margin-inline: auto;
 }
@@ -597,21 +647,7 @@
    侧栏面板
    ========================================================================== */
 
-.sidebar {
-  display: flex;
-  flex-direction: column;
-  gap: var(--sp-4);
-  min-width: 0;
-}
-@media (min-width: 1024px) {
-  .sidebar {
-    position: sticky;
-    top: calc(var(--header-h) + var(--safe-top) + var(--sp-4));
-    max-height: calc(100dvh - var(--header-h) - var(--sp-7));
-    overflow-y: auto;
-    padding-right: 2px;
-  }
-}
+
 
 .turn-card {
   display: block;
@@ -670,6 +706,79 @@
   50% {
     transform: scale(1.06);
     filter: brightness(1.25);
+  }
+}
+
+/* 棋钟：黑白双方用时 */
+.clock-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: var(--sp-3);
+}
+.clock-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 11px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border);
+  background: var(--bg-sunk);
+  font-family: var(--font-mono);
+  font-size: var(--step--1);
+  color: var(--text-dim);
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.clock-chip__side {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  font-family: var(--font-body);
+}
+.clock-chip--black .clock-chip__side {
+  color: #e0654a;
+}
+.clock-chip--white .clock-chip__side {
+  color: #6fd0b4;
+}
+.clock-chip__time {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.04em;
+}
+.clock-chip.is-active {
+  color: var(--text-strong);
+}
+.clock-chip--black.is-active {
+  border-color: rgba(224, 101, 74, 0.5);
+  background: rgba(224, 101, 74, 0.1);
+  box-shadow: 0 0 0 1px rgba(224, 101, 74, 0.2), 0 6px 16px -10px rgba(224, 101, 74, 0.8);
+}
+.clock-chip--white.is-active {
+  border-color: rgba(111, 208, 180, 0.5);
+  background: rgba(111, 208, 180, 0.1);
+  box-shadow: 0 0 0 1px rgba(111, 208, 180, 0.2), 0 6px 16px -10px rgba(111, 208, 180, 0.8);
+}
+.clock-row--limited .clock-chip__time {
+  font-weight: 600;
+}
+.clock-chip.is-low {
+  border-color: rgba(207, 74, 51, 0.55);
+  animation: lowTime 1.6s var(--ease-in-out) infinite;
+}
+.clock-chip.is-low .clock-chip__time {
+  color: var(--cinnabar-300);
+}
+@keyframes lowTime {
+  0%,
+  100% {
+    background: rgba(185, 58, 43, 0.08);
+  }
+  50% {
+    background: rgba(185, 58, 43, 0.2);
   }
 }
 
@@ -1135,6 +1244,180 @@
   }
 }
 
+/* ---- 泼墨大字：杀 / 承让 / 败北 ---- */
+.fx-glyph {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 82;
+}
+.fx-glyph__ink {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.fx-glyph__stage {
+  position: absolute;
+  left: var(--glyph-x, 50%);
+  top: var(--glyph-y, 42%);
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: clamp(4px, 1.4vh, 16px);
+  animation: glyphSettle 900ms var(--ease-spring) var(--glyph-delay, 0ms) both;
+}
+.fx-glyph__wrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  /* 硬边投影 + 墨色辉光：drop-shadow 会跟随字形轮廓，因此渐变填充也能保留锋利边缘 */
+  filter: drop-shadow(var(--glyph-hard, 5px) var(--glyph-hard, 5px) 0 rgba(14, 6, 4, 0.92))
+    drop-shadow(0 0 22px color-mix(in srgb, var(--glyph-color, #b93a2b) 42%, transparent));
+}
+.fx-glyph__char {
+  position: relative;
+  font-family: 'Zhi Mang Xing', 'Long Cang', 'Ma Shan Zheng', 'Noto Serif SC', 'Songti SC', serif;
+  font-weight: 400;
+  line-height: 0.92;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  background: var(--glyph-grad, linear-gradient(176deg, #ff9b7a 0%, #d63f24 42%, #8c1d12 100%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.014em var(--glyph-rim, rgba(255, 208, 182, 0.55));
+  transform: rotate(var(--glyph-angle, 0deg)) skewX(-7deg);
+  animation: brushWipe 480ms var(--ease-out) var(--glyph-delay, 0ms) both;
+  will-change: clip-path, transform, filter;
+}
+.fx-glyph__char--bleed {
+  position: absolute;
+  background: none;
+  -webkit-text-fill-color: var(--glyph-color, #b93a2b);
+  color: var(--glyph-color, #b93a2b);
+  -webkit-text-stroke: 0;
+  opacity: 0.4;
+  filter: blur(11px);
+  z-index: -1;
+  transform: rotate(var(--glyph-angle, 0deg));
+  animation: inkBleed 2600ms var(--ease-out) var(--glyph-delay, 0ms) both;
+}
+.fx-glyph__sub {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(11px, 1.5vh, 17px);
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  color: var(--text-strong);
+  background: rgba(10, 8, 6, 0.62);
+  border: 1px solid color-mix(in srgb, var(--glyph-color, #b93a2b) 55%, transparent);
+  border-radius: var(--radius-pill);
+  padding: 4px 14px;
+  backdrop-filter: blur(6px);
+  box-shadow: 0 6px 18px -10px rgba(0, 0, 0, 0.9);
+  animation: viewIn 420ms var(--ease-out) 420ms both;
+}
+.fx-glyph--slash {
+  --glyph-hard: 7px;
+}
+.fx-glyph--slash .fx-glyph__char {
+  font-size: clamp(130px, 38vh, 380px);
+}
+.fx-glyph--victory {
+  --glyph-hard: 5px;
+  /* 「承让」用龙藏：行楷骨架，比行书更端正，也更锋利 */
+}
+.fx-glyph--victory .fx-glyph__char {
+  font-family: 'Long Cang', 'Zhi Mang Xing', 'Ma Shan Zheng', serif;
+  font-size: clamp(96px, 27vh, 280px);
+}
+.fx-glyph--second {
+  --glyph-hard: 3px;
+  z-index: 81;
+  --glyph-grad: linear-gradient(176deg, #8a7357 0%, #3a2f23 45%, #100c08 100%);
+  --glyph-rim: rgba(230, 205, 144, 0.4);
+}
+.fx-glyph--second .fx-glyph__char {
+  font-family: 'Long Cang', 'Zhi Mang Xing', 'Ma Shan Zheng', serif;
+  font-size: clamp(60px, 16vh, 160px);
+  -webkit-text-stroke-width: 0.02em;
+}
+.fx-glyph--second .fx-glyph__sub {
+  font-size: clamp(10px, 1.2vh, 14px);
+}
+
+@keyframes brushWipe {
+  0% {
+    clip-path: inset(0 100% 8% 0);
+    filter: blur(7px);
+    opacity: 0.12;
+    transform: rotate(calc(var(--glyph-angle, 0deg) - 6deg)) skewX(-9deg) scale(1.12);
+  }
+  48% {
+    filter: blur(0.3px);
+    opacity: 1;
+    transform: rotate(calc(var(--glyph-angle, 0deg) + 0.6deg)) skewX(-8deg) scale(1.015);
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    filter: blur(0);
+    opacity: 1;
+    transform: rotate(var(--glyph-angle, 0deg)) skewX(-7deg) scale(1);
+  }
+}
+@keyframes inkBleed {
+  0% {
+    opacity: 0;
+    transform: rotate(var(--glyph-angle, 0deg)) scale(0.9);
+  }
+  20% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0.2;
+    transform: rotate(var(--glyph-angle, 0deg)) scale(1.12);
+  }
+}
+@keyframes glyphSettle {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+/* 泼墨冲击带来的轻微震屏 */
+@keyframes inkShake {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  18% {
+    transform: translate3d(calc(-4px * var(--shake, 1)), calc(2px * var(--shake, 1)), 0);
+  }
+  36% {
+    transform: translate3d(calc(3px * var(--shake, 1)), calc(-3px * var(--shake, 1)), 0);
+  }
+  54% {
+    transform: translate3d(calc(-2px * var(--shake, 1)), calc(1px * var(--shake, 1)), 0);
+  }
+  72% {
+    transform: translate3d(calc(1px * var(--shake, 1)), 0, 0);
+  }
+}
+body.ink-shake .shell {
+  animation: inkShake 420ms cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
 /* 定式横幅 */
 .fx-banner {
   position: absolute;
@@ -1217,13 +1500,20 @@
   border: 1px solid var(--border);
   animation: viewIn var(--dur) var(--ease-out) both;
 }
-.note--win {
-  border-color: rgba(200, 169, 81, 0.4);
-  background: rgba(200, 169, 81, 0.08);
+/* 阵营语义色：黑 = 朱砂，白 = 青玉 */
+.note--black {
+  border-color: rgba(224, 101, 74, 0.42);
+  background: rgba(224, 101, 74, 0.08);
 }
-.note--must {
-  border-color: rgba(185, 58, 43, 0.4);
-  background: rgba(185, 58, 43, 0.08);
+.note--white {
+  border-color: rgba(111, 208, 180, 0.4);
+  background: rgba(111, 208, 180, 0.07);
+}
+.note--strong.note--black {
+  box-shadow: inset 0 0 0 1px rgba(224, 101, 74, 0.28);
+}
+.note--strong.note--white {
+  box-shadow: inset 0 0 0 1px rgba(111, 208, 180, 0.26);
 }
 .note__dot {
   width: 7px;
@@ -1233,13 +1523,65 @@
   flex: none;
   background: var(--text-faint);
 }
-.note--win .note__dot {
-  background: var(--gold-400);
-  box-shadow: 0 0 10px var(--gold-400);
+.note--black .note__dot {
+  background: #e0654a;
+  box-shadow: 0 0 10px #e0654a;
 }
-.note--must .note__dot {
-  background: var(--cinnabar-400);
-  box-shadow: 0 0 10px var(--cinnabar-400);
+.note--white .note__dot {
+  background: #6fd0b4;
+  box-shadow: 0 0 10px #6fd0b4;
+}
+.note--strong .note__dot {
+  width: 9px;
+  height: 9px;
+  margin-top: 6px;
+  background: none;
+  border: 2px solid currentColor;
+}
+.note--strong.note--black .note__dot {
+  border-color: #e0654a;
+  box-shadow: 0 0 10px rgba(224, 101, 74, 0.7);
+}
+.note--strong.note--white .note__dot {
+  border-color: #6fd0b4;
+  box-shadow: 0 0 10px rgba(111, 208, 180, 0.7);
+}
+
+/* 图例 */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: var(--step--2);
+  color: var(--text-faint);
+}
+.legend__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  letter-spacing: 0.06em;
+}
+.legend__item i {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  flex: none;
+}
+.legend__item--black {
+  color: #e0654a;
+}
+.legend__item--white {
+  color: #6fd0b4;
+}
+.legend__item--book {
+  color: #e6cd90;
+}
+.legend__item--forbidden {
+  color: #cf4a33;
+}
+.legend__item--forbidden i {
+  border-radius: 2px;
 }
 
 /* ==========================================================================
@@ -1547,6 +1889,20 @@
   color: var(--text-dim);
 }
 
+/* 对弈与联机页不需要整站页脚 */
+html[data-route='ai'] .footer,
+html[data-route='local'] .footer,
+html[data-route='online'] .footer,
+html[data-route='review'] .footer {
+  display: none;
+}
+
+@media (max-width: 860px) {
+  .play-col {
+    display: block;
+  }
+}
+
 @media (min-width: 861px) {
   .tabbar,
   .sheet-scrim {
@@ -1562,9 +1918,6 @@
 }
 @media (max-width: 860px) {
   .hide-mobile {
-    display: none !important;
-  }
-  .sidebar--desktop-only {
     display: none !important;
   }
 }

@@ -312,7 +312,14 @@ export class OnlineView implements View {
       label: `${this.myName}（你）`,
       sublabel: `执${this.myColor === BLACK ? '黑' : '白'} · 延迟 ${this.latency} ms`,
       sendMove: (move: Move) => {
-        this.session?.send({ t: 'move', x: move.x, y: move.y, color: this.myColor, ply: move.index });
+        this.session?.send({
+          t: 'move',
+          x: move.x,
+          y: move.y,
+          color: this.myColor,
+          ply: move.index,
+          ms: this.play?.game?.currentMoveMs() ?? 0,
+        });
       },
       sendUndo: () => this.session?.send({ t: 'undo-request' }),
       sendResign: (color: Player) => this.session?.send({ t: 'resign', color }),
@@ -326,6 +333,7 @@ export class OnlineView implements View {
       config: {
         size: this.ctx.prefs.size,
         rules: this.ctx.prefs.rules,
+        clockMode: this.ctx.prefs.clock,
         black: this.myColor === BLACK ? 'human' : 'remote',
         white: this.myColor === WHITE ? 'human' : 'remote',
         humanColor: this.myColor,
@@ -348,9 +356,12 @@ export class OnlineView implements View {
         break;
       case 'start':
         break;
-      case 'move':
+      case 'move': {
+        // 对手用时同步给本地的棋钟
+        if (typeof msg.ms === 'number' && msg.ms > 0) this.play?.game?.creditRemoteTime(msg.color, msg.ms);
         this.play?.applyRemoteMove(msg.x, msg.y, msg.color);
         break;
+      }
       case 'undo-request':
         modal({
           title: '对手请求悔棋',

@@ -3,7 +3,17 @@
  * 落子为「木石相击」，印章为「闷响」，获胜为「古琴五声音阶」。
  */
 
-export type SoundName = 'place-black' | 'place-white' | 'undo' | 'win' | 'seal' | 'threat' | 'tick' | 'click';
+export type SoundName =
+  | 'place-black'
+  | 'place-white'
+  | 'undo'
+  | 'win'
+  | 'seal'
+  | 'threat'
+  | 'tick'
+  | 'click'
+  /** 毛笔泼墨：笔锋扫过 + 落纸闷响 */
+  | 'brush';
 
 const PENTATONIC = [261.63, 293.66, 329.63, 392.0, 440.0, 523.25, 587.33, 659.25, 783.99];
 
@@ -148,6 +158,27 @@ export class SoundEngine {
       case 'click':
         this.burst(t, 1500, 1.6, 0.16, 0.04);
         break;
+      case 'brush': {
+        // 带通噪声由高频扫到低频 —— 笔锋划过纸面的沙沙声
+        if (!this.ctx || !this.master || !this.noiseBuffer) break;
+        const src = this.ctx.createBufferSource();
+        src.buffer = this.noiseBuffer;
+        const bp = this.ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.Q.value = 1.05;
+        bp.frequency.setValueAtTime(3600, t);
+        bp.frequency.exponentialRampToValueAtTime(380, t + 0.34);
+        const g = this.ctx.createGain();
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.linearRampToValueAtTime(0.34, t + 0.05);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + 0.44);
+        src.connect(bp).connect(g).connect(this.master);
+        src.start(t);
+        src.stop(t + 0.5);
+        this.burst(t + 0.26, 220, 0.7, 0.5, 0.26);
+        this.pluck(t + 0.26, 84, 0.32, 0.6);
+        break;
+      }
     }
   }
 }

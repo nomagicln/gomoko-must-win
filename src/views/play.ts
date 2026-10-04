@@ -11,6 +11,7 @@ import { BLACK, WHITE, type GameStatus, type Move, type Player, type Point, type
 import { sound } from '../ui/audio';
 import { GameController, type GameConfig } from '../ui/controller';
 import { append, clear, copyText, el, icon, modal, toast, vibrate } from '../ui/dom';
+import { CLOCK_PRESETS, clockModeLabel, formatClock, type ClockMode, type ClockState } from '../ui/clock';
 import { BoardRenderer, type HeatCell, type MarkerCell } from '../ui/renderer';
 import type { AppContext, View } from '../app';
 
@@ -49,7 +50,9 @@ export class PlayView implements View {
 
   private root!: HTMLElement;
   private canvas!: HTMLCanvasElement;
-  private sidebar!: HTMLElement;
+  private leftCol!: HTMLElement;
+  private rightCol!: HTMLElement;
+  private playEl!: HTMLElement;
   private sheet!: HTMLElement;
   private sheetScrim!: HTMLElement;
   private sheetBody!: HTMLElement;
@@ -108,6 +111,7 @@ export class PlayView implements View {
     let humanColor: Player = prefs.humanColor;
     let rules: RuleSet = prefs.rules;
     let size = prefs.size;
+    let clockMode: ClockMode = prefs.clock;
 
     const diffGrid = el('div', { class: 'diff-grid' });
     const renderDiff = () => {
@@ -205,6 +209,28 @@ export class PlayView implements View {
     };
     renderSize();
 
+    const clockSeg = el('div', { class: 'segmented', role: 'group', 'aria-label': '选择计时方式' });
+    const renderClock = () => {
+      clear(clockSeg);
+      for (const preset of CLOCK_PRESETS) {
+        clockSeg.appendChild(
+          el('button', {
+            class: 'segmented__item',
+            type: 'button',
+            'aria-pressed': String(clockMode === preset.id),
+            title: preset.desc,
+            text: preset.label,
+            onclick: () => {
+              clockMode = preset.id;
+              sound.play('tick');
+              renderClock();
+            },
+          }),
+        );
+      }
+    };
+    renderClock();
+
     const startBtn = el(
       'button',
       {
@@ -212,6 +238,7 @@ export class PlayView implements View {
         type: 'button',
         onclick: () => {
           sound.unlock();
+          this.ctx.prefs.clock = clockMode;
           this.ctx.prefs.difficulty = difficulty;
           this.ctx.prefs.humanColor = humanColor;
           this.ctx.prefs.rules = rules;
@@ -221,6 +248,7 @@ export class PlayView implements View {
           this.mountGame({
             size,
             rules,
+            clockMode,
             difficulty,
             black: humanColor === BLACK ? 'human' : 'ai',
             white: humanColor === WHITE ? 'human' : 'ai',
@@ -259,7 +287,8 @@ export class PlayView implements View {
             field('执子', colorSeg),
             field('规则', rulesSeg),
             field('棋盘', sizeSeg),
-            el('p', { class: 'faint', style: { fontSize: 'var(--step--1)', margin: '0' }, text: '连珠禁手规则下，黑棋的三三、四四、长连都会被标为禁手点（朱砂叉），不可落子。' }),
+            field('计时', clockSeg),
+            el('p', { class: 'faint', style: { fontSize: 'var(--step--1)', margin: '0' }, text: '连珠禁手规则下，黑棋的三三、四四、长连都会被标为禁手点（朱砂叉），不可落子。限时模式下超过可用时间即判负，每落一子获得加秒。' }),
           ),
         ),
       ),
@@ -276,6 +305,7 @@ export class PlayView implements View {
     const config: GameConfig = {
       size: prefs.size,
       rules: prefs.rules,
+      clockMode: prefs.clock,
       difficulty: prefs.difficulty,
       black: 'human',
       white: 'human',
@@ -291,7 +321,8 @@ export class PlayView implements View {
     const actionbar = el('div', { class: 'actionbar' });
     const stage = el('div', { class: 'stage' }, badge, frame, actionbar);
 
-    this.sidebar = el('aside', { class: 'sidebar sidebar--desktop-only' });
+    this.leftCol = el('aside', { class: 'play-col play-col--left', hidden: true });
+    this.rightCol = el('aside', { class: 'play-col play-col--right' });
     this.sheetBody = el('div', { class: 'sheet__body' });
 
     // 手柄：点击或下滑都可收起抽屉
@@ -333,7 +364,9 @@ export class PlayView implements View {
       icon('sliders', 18),
     );
 
-    append(this.root, [el('div', { class: 'play' }, stage, this.sidebar), this.sheetScrim, this.sheetToggle, this.sheet]);
+    this.playEl = el('div', { class: 'play' }, this.leftCol, stage, this.rightCol);
+    this.root.classList.add('view--play');
+    append(this.root, [this.playEl, this.sheetScrim, this.sheetToggle, this.sheet]);
     this.buildSheetTabs();
 
     // 控制器
@@ -346,6 +379,10 @@ export class PlayView implements View {
         this.renderThink(null, 0);
       },
       onGameOver: (status, win) => this.onGameOver(status, win),
+      onTimeout: (loser) => {
+        toast(`${loser === BLACK ? '黑棋' : '白棋'}超时判负`, 'danger', 3200);
+      },
+      onClock: (state) => this.renderClock(state),
       onBook: (match) => this.syncBook(match),
       onThreats: (notes, markers) => {
         this.markers = markers;
@@ -399,13 +436,11 @@ export class PlayView implements View {
       window.matchMedia('(min-width: 1024px)').addEventListener('change', this.onResize);
     }
 
-    // 如果 AI 执黑，自动开局；若带入了定式着法，则先铺入再续下
-    window.setTimeout(() => {
-      this.controller?.start();
-      const seq = this.options.initialMoves;
-      if (seq && seq.length) this.controller?.applySequence(seq);
-      this.syncAll();
-    }, 60);
+    // 立刻开局（不能再交给 setTimeout：后台标签页的定时器会被节流，
+    // 延迟执行的 reset 会把玩家已经落下的第一手抹掉）
+    this.controller.start();
+    const seq = this.options.initialMoves;
+    if (seq && seq.length) this.controller.applySequence(seq);
     this.syncAll();
   }
 
@@ -426,10 +461,24 @@ export class PlayView implements View {
 
     // ---- 战术提示 ----
     const noteList = el('div', { class: 'note-list' });
+    const legend = el(
+      'div',
+      { class: 'legend' },
+      el('span', { class: 'legend__item legend__item--black' }, el('i'), '黑方落位'),
+      el('span', { class: 'legend__item legend__item--white' }, el('i'), '白方落位'),
+      el('span', { class: 'legend__item legend__item--book' }, el('i'), '定式谱着'),
+      el('span', { class: 'legend__item legend__item--forbidden' }, el('i'), '禁手'),
+    );
     const notesCard = el(
       'div',
       { class: 'card', dataset: { tab: 'game' } },
-      el('div', { class: 'card__body stack' }, el('div', { class: 'card__title', text: '战术提示' }), noteList),
+      el(
+        'div',
+        { class: 'card__body stack' },
+        el('div', { class: 'card__title', text: '战术提示' }),
+        legend,
+        noteList,
+      ),
     );
     this.cards.notes = notesCard;
     this.notesList = noteList;
@@ -627,30 +676,39 @@ export class PlayView implements View {
   }
 
   private layout(): void {
-    if (!this.sidebar || !this.sheetBody) return;
-    const desktop = window.innerWidth >= 1024;
+    if (!this.leftCol || !this.rightCol || !this.playEl) return;
+    const w = window.innerWidth;
+    const desktop = w >= 1024;
+    const threeCol = w >= 1320;
     const order = ['turn', 'notes', 'think', 'moves', 'tools'];
-    const host = desktop ? this.sidebar : this.sheetBody;
-    if (desktop) {
+
+    if (!desktop) {
+      // 移动端：卡片进底部抽屉，按标签分组；棋盘与操作条留在页面上
       this.toggleSheetSilently(false);
+      this.playEl.classList.remove('is-3col');
+      this.leftCol.hidden = true;
       for (const k of order) {
         const card = this.cards[k];
         if (!card) continue;
-        card.hidden = false;
-        host.appendChild(card);
+        card.hidden = (card.dataset.tab ?? 'game') !== this.tab;
+        this.sheetBody.appendChild(card);
       }
-    } else {
-      for (const k of order) {
-        const card = this.cards[k];
-        if (!card) continue;
-        const tabName = card.dataset.tab ?? 'game';
-        card.hidden = tabName !== this.tab;
-        host.appendChild(card);
-      }
+      return;
+    }
+
+    // 桌面端：抽屉收起，左「设置」中「棋盘」右「提示与棋谱」
+    this.toggleSheetSilently(false);
+    this.playEl.classList.toggle('is-3col', threeCol);
+    this.leftCol.hidden = !threeCol;
+    for (const k of order) {
+      const card = this.cards[k];
+      if (!card) continue;
+      card.hidden = false;
+      if (k === 'tools' && threeCol) this.leftCol.appendChild(card);
+      else this.rightCol.appendChild(card);
     }
   }
 
-  /* ------------------------------------------------------------------ */
   /* 供联机 / 教学使用的公开入口                                          */
   /* ------------------------------------------------------------------ */
 
@@ -734,6 +792,7 @@ export class PlayView implements View {
     this.renderMoves();
     this.syncAnalysisButton();
     this.renderForbidden();
+    this.renderClock(this.controller.clockState);
   }
 
   private syncRenderer(): void {
@@ -820,9 +879,54 @@ export class PlayView implements View {
         el('div', { class: 'turn-card__meta', text: c.isOver ? `${c.board.moveCount} 手` : meta }),
       ));
       const meter = this.evalRow;
-      append(card, [main, meter ?? null]);
+      append(card, [main, this.buildClockRow(), meter ?? null]);
       this.evalRow = meter;
       card.classList.toggle('turn-card--thinking', this.thinking);
+    }
+  }
+
+  /** 黑白双方计时条 */
+  private buildClockRow(): HTMLElement {
+    if (this.clockRow) return this.clockRow;
+    const mk = (side: 'black' | 'white'): HTMLElement => {
+      const chip = el(
+        'div',
+        { class: `clock-chip clock-chip--${side}` },
+        el('span', { class: 'clock-chip__side', text: side === 'black' ? '黑' : '白' }),
+        el('span', { class: 'clock-chip__time', text: '00:00' }),
+      );
+      this.clockChips[side] = chip;
+      return chip;
+    };
+    const row = el('div', { class: 'clock-row' }, mk('black'), mk('white'));
+    this.clockRow = row;
+    const state = this.controller?.clockState;
+    if (state) this.renderClock(state);
+    return row;
+  }
+
+  private renderClock(state: ClockState): void {
+    if (!this.clockRow) this.buildClockRow();
+    const limited = state.remaining !== null;
+    for (const side of ['black', 'white'] as const) {
+      const chip = this.clockChips[side];
+      if (!chip) continue;
+      const color = side === 'black' ? BLACK : WHITE;
+      chip.classList.toggle('is-active', state.active === color);
+      chip.classList.toggle('is-low', limited && state.remaining![side] <= 60_000);
+      const time = chip.querySelector('.clock-chip__time') as HTMLElement | null;
+      if (time) {
+        time.textContent = limited ? formatClock(state.remaining![side]) : formatClock(state.used[side]);
+        time.title = limited ? '剩余时间' : '累计用时';
+      }
+      const label = chip.querySelector('.clock-chip__side') as HTMLElement | null;
+      if (label) label.textContent = side === 'black' ? '黑' : '白';
+    }
+    const mode = this.controller?.config.clockMode ?? 'none';
+    const row = this.clockRow;
+    if (row) {
+      row.classList.toggle('clock-row--limited', limited);
+      row.title = limited ? `限时：${clockModeLabel(mode)}` : '只计时：记录双方累计用时';
     }
   }
 
@@ -874,11 +978,13 @@ export class PlayView implements View {
   private hoverNote: HTMLElement | null = null;
 
   private evalRow: HTMLElement | null = null;
+  private clockRow: HTMLElement | null = null;
+  private clockChips: Record<'black' | 'white', HTMLElement | null> = { black: null, white: null };
   private notesList!: HTMLElement;
   private thinkList!: HTMLElement;
   private moveList!: HTMLElement;
 
-  private renderNotes(notes: Array<{ point: Point; text: string; tone: string }>): void {
+  private renderNotes(notes: Array<{ point: Point; text: string; tone: string; side?: Player }>): void {
     if (!this.notesList) return;
     clear(this.notesList);
     if (notes.length === 0) {
@@ -886,8 +992,14 @@ export class PlayView implements View {
       return;
     }
     for (const n of notes) {
+      const side = n.side === WHITE ? 'note--white' : 'note--black';
       this.notesList.appendChild(
-        el('div', { class: `note note--${n.tone}` }, el('span', { class: 'note__dot' }), el('span', { text: n.text })),
+        el(
+          'div',
+          { class: `note ${side}${n.tone === 'win' ? ' note--strong' : ''}` },
+          el('span', { class: 'note__dot' }),
+          el('span', { text: n.text }),
+        ),
       );
     }
   }
@@ -1231,6 +1343,7 @@ export class PlayView implements View {
     const last = board.lastMove;
     const win = last ? board.checkWinAt(last.x, last.y) : null;
     if (win) this.renderer.flashWin(win.line);
+    this.root.classList.add('view--play');
     append(this.root, [
       el(
         'div',

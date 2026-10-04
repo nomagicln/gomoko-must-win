@@ -14,7 +14,7 @@ export type NetMessage =
   | { t: 'hello'; name: string; size: number; rules: string; version: number }
   | { t: 'ready'; name: string }
   | { t: 'start'; black: NetRole; size: number; rules: string; first: number }
-  | { t: 'move'; x: number; y: number; color: 1 | 2; ply: number }
+  | { t: 'move'; x: number; y: number; color: 1 | 2; ply: number; ms?: number }
   | { t: 'undo-request' }
   | { t: 'undo-accept'; ply: number }
   | { t: 'undo-reject' }

@@ -12,8 +12,9 @@ import { SHAPE_SCORE, Shape } from '../ai/shapes';
 import { Board } from '../core/board';
 import { BLACK, WHITE, other, type GameStatus, type Move, type Player, type Point, type RuleSet, type WinInfo } from '../core/types';
 import { sound } from '../ui/audio';
-import { toast } from '../ui/dom';
-import { forcedWinFX, openingBanner, victoryFX } from '../ui/fx';
+import { Clock, clockConfigOf, type ClockMode, type ClockState } from '../ui/clock';
+import { clearToasts, toast } from '../ui/dom';
+import { killSlash, openingBanner, victoryFX } from '../ui/fx';
 import type { HeatCell, MarkerCell } from '../ui/renderer';
 
 export type Seat = 'human' | 'ai' | 'remote' | 'none';
@@ -21,6 +22,8 @@ export type Seat = 'human' | 'ai' | 'remote' | 'none';
 export interface GameConfig {
   size: number;
   rules: RuleSet;
+  /** 棋钟模式：只计时 / 限时加秒 */
+  clockMode: ClockMode;
   difficulty: Difficulty;
   black: Seat;
   white: Seat;
@@ -36,6 +39,10 @@ export interface MoveInfo {
 
 export interface GameListeners {
   onMove?: (info: MoveInfo) => void;
+  /** 每 200ms 推送一次双方用时 */
+  onClock?: (state: ClockState) => void;
+  /** 超时判负 */
+  onTimeout?: (loser: Player) => void;
   onForcedWin?: (win: ForcedWin) => void;
   onStateChange?: () => void;
   onThinking?: (thinking: boolean, message?: string) => void;
@@ -61,12 +68,32 @@ export class GameController {
   private analysisOn = false;
   private lastHint: Point | null = null;
   private destroyed = false;
+  private readonly clock: Clock;
 
   constructor(config: GameConfig, listeners: GameListeners = {}) {
     this.config = config;
     this.listeners = listeners;
     this.board = new Board({ size: config.size, rules: config.rules });
     this.ai = new AIClient();
+    this.clock = new Clock(clockConfigOf(config.clockMode));
+    this.clock.onChange(
+      (state) => this.listeners.onClock?.(state),
+      (loser) => this.handleTimeout(loser),
+    );
+  }
+
+  get clockState(): ClockState {
+    return this.clock.state;
+  }
+
+  /** 本手已用时间（联机同步用） */
+  currentMoveMs(): number {
+    return this.clock.currentMoveMs();
+  }
+
+  /** 对手用时同步 */
+  creditRemoteTime(color: Player, ms: number): void {
+    this.clock.addExternal(color, ms);
   }
 
   get size(): number {
@@ -104,6 +131,7 @@ export class GameController {
     this.lastBookKey = '';
     this.lastForceSignalPly = -99;
     this.lastHint = null;
+    this.clock.reset(clockConfigOf(this.config.clockMode));
     this.listeners.onStateChange?.();
     this.afterMove(null, null);
   }
@@ -122,6 +150,7 @@ export class GameController {
 
   dispose(): void {
     this.disposed = true;
+    this.clock.dispose();
     this.destroyed = true;
     this.ai.dispose();
   }
@@ -168,6 +197,7 @@ export class GameController {
     }
     sound.play(color === BLACK ? 'place-black' : 'place-white');
     const move = result.move!;
+    this.clock.commit();
     const win = result.win ?? null;
 
     // 若走的是 AI 提示点，消费掉提示
@@ -196,7 +226,7 @@ export class GameController {
 
     // 1. 定式识别与脱谱提示
     if (book) {
-      const key = `${book.openingId}:${book.ply}`;
+      const key = book.openingId;
       if (book.ply >= 3 && key !== this.lastBookKey) {
         this.lastBookKey = key;
         openingBanner({
@@ -204,7 +234,6 @@ export class GameController {
           title: `定式 · ${book.openingName}（${book.category}）`,
           sub: `${book.variationName} · 第 ${book.ply} 手仍在谱中`,
         });
-        sound.play('tick');
       }
       this.listeners.onBook?.(book);
     } else {
@@ -218,11 +247,14 @@ export class GameController {
     // 2. 威胁提示
     this.emitThreats();
 
-    // 3. 必胜侦测（异步，放在后台线程）
+    // 3. 杀局侦测：刚落下这一手的人是否已经布成必胜之局
     const toMove = this.board.turn;
-    if (this.board.moveCount >= 2) void this.detectWinSignal(toMove);
+    if (lastMove && this.board.moveCount >= 3) void this.detectWinSignal(lastMove.player);
 
-    // 4. 若轮到 AI，开始思考
+    // 4. 棋钟交到下一方手上（第一手落下后才开始走表，避免开局前就掉时间）
+    if (this.board.moveCount >= 1) this.clock.switchTo(toMove);
+
+    // 5. 若轮到 AI，开始思考
     if (!remote || seatOf(this.config, toMove) === 'ai') this.maybeThink();
 
     if (this.analysisOn) void this.refreshAnalysis();
@@ -230,20 +262,23 @@ export class GameController {
 
   private emitThreats(): void {
     const toMove = this.board.turn;
+    const foe = other(toMove);
     const notes: PointNote[] = [];
     const markers: MarkerCell[] = [];
 
-    // 对手的必杀点（我必须应对）
-    const defense = threatMap(this.board.rawCells(), this.size, other(toMove), { radius: 2 });
+    // 对手的必杀点（我必须应对）—— 用对手的阵营色标记
+    const defense = threatMap(this.board.rawCells(), this.size, foe, { radius: 2 });
     const opp = defense[0];
     if (opp && (opp.five || opp.doubleThreat !== 'none' || opp.fours > 0 || opp.openThrees > 0)) {
       markers.push({
         x: opp.x,
         y: opp.y,
         kind: opp.five || opp.doubleThreat !== 'none' ? 'win' : opp.fours > 0 ? 'four' : 'three',
+        side: foe,
       });
       notes.push({
         point: opp,
+        side: foe,
         text: opp.five
           ? `对手在 ${coordName(opp, this.size)} 成五，必须封堵`
           : opp.doubleThreat !== 'none'
@@ -255,21 +290,21 @@ export class GameController {
       });
     }
 
-    // 我方的进攻点
+    // 我方的进攻点 —— 用我方的阵营色标记
     const attack = threatMap(this.board.rawCells(), this.size, toMove, { radius: 2 });
     for (const a of attack.slice(0, 3)) {
       if (a.five) {
-        markers.push({ x: a.x, y: a.y, kind: 'win' });
-        notes.push({ point: a, text: `${coordName(a, this.size)} 一步成五`, tone: 'win' });
+        markers.push({ x: a.x, y: a.y, kind: 'win', side: toMove });
+        notes.push({ point: a, side: toMove, text: `${coordName(a, this.size)} 一步成五`, tone: 'win' });
       } else if (a.doubleThreat !== 'none') {
-        markers.push({ x: a.x, y: a.y, kind: 'win' });
-        notes.push({ point: a, text: `${coordName(a, this.size)} 形成必胜手`, tone: 'win' });
+        markers.push({ x: a.x, y: a.y, kind: 'win', side: toMove });
+        notes.push({ point: a, side: toMove, text: `${coordName(a, this.size)} 形成必胜手`, tone: 'win' });
       } else if (a.fours > 0) {
-        markers.push({ x: a.x, y: a.y, kind: 'four' });
-        notes.push({ point: a, text: `${coordName(a, this.size)} 冲四抢手`, tone: 'must' });
+        markers.push({ x: a.x, y: a.y, kind: 'four', side: toMove });
+        notes.push({ point: a, side: toMove, text: `${coordName(a, this.size)} 冲四抢手`, tone: 'must' });
       } else if (a.openThrees > 0 && notes.length < 4) {
-        markers.push({ x: a.x, y: a.y, kind: 'three' });
-        notes.push({ point: a, text: `${coordName(a, this.size)} 活三抢先`, tone: 'win' });
+        markers.push({ x: a.x, y: a.y, kind: 'three', side: toMove });
+        notes.push({ point: a, side: toMove, text: `${coordName(a, this.size)} 活三抢先`, tone: 'win' });
       }
     }
 
@@ -285,7 +320,8 @@ export class GameController {
 
   private async detectWinSignal(color: Player): Promise<void> {
     if (this.disposed || this.board.isOver) return;
-    if (this.board.moveCount - this.lastForceSignalPly < 2) return;
+    const at = this.board.moveCount;
+    if (at - this.lastForceSignalPly < 4) return;
     try {
       const win = await this.ai.detect({
         cells: this.board.rawCells(),
@@ -294,12 +330,12 @@ export class GameController {
         rules: this.config.rules,
       });
       if (this.disposed || !win || this.board.isOver) return;
-      if (this.board.turn !== color) return;
-      this.lastForceSignalPly = this.board.moveCount;
+      if (this.board.moveCount !== at) return; // 局面已经变化，放弃这次播报
+      this.lastForceSignalPly = at;
       const who = color === this.config.humanColor ? '你' : color === BLACK ? '黑棋' : '白棋';
-      forcedWinFX(`${who} · ${win.label}`);
-      toast(`${who}已找到制胜路线：${win.label}`, 'win', 3000);
-      if (win.line.length > 1) this.listeners.onAnalysis?.([], null, 0);
+      // 泼墨红「杀」——这一刻属于已经布成杀局的人
+      killSlash(win.label, { who });
+      toast(`${who}已成杀局：${win.label}`, 'win', 3000);
       this.listeners.onForcedWin?.(win);
     } catch {
       /* 侦测失败不影响对局 */
@@ -376,6 +412,7 @@ export class GameController {
     this.lastHint = null;
     this.lastBookKey = '';
     this.lastForceSignalPly = -99;
+    this.clock.switchTo(this.board.isOver ? null : this.board.turn);
     sound.play('undo');
     this.listeners.onStateChange?.();
     this.listeners.onBook?.(this.detectBook());
@@ -391,17 +428,42 @@ export class GameController {
     this.handleGameOver(winner === BLACK ? 'black-win' : 'white-win', null);
   }
 
-  private handleGameOver(status: GameStatus, win: WinInfo | null): void {
+  private handleTimeout(loser: Player): void {
+    if (this.board.isOver) return;
+    const winner = other(loser);
+    this.board.declareResult(winner === BLACK ? 'black-win' : 'white-win');
+    sound.play('seal');
+    clearToasts();
+    toast(`${loser === BLACK ? '黑棋' : '白棋'}超时判负`, 'danger', 3600);
+    this.listeners.onTimeout?.(loser);
+    this.handleGameOver(winner === BLACK ? 'black-win' : 'white-win', null, true);
+  }
+
+  private handleGameOver(status: GameStatus, win: WinInfo | null, silent = false): void {
     this.thinking = false;
+    this.clock.stop();
+    if (!silent) clearToasts();
     this.listeners.onThinking?.(false);
     const humanWon = win ? win.player === this.config.humanColor : false;
+    if (silent) {
+      this.listeners.onGameOver?.(status, win);
+      this.listeners.onStateChange?.();
+      return;
+    }
     if (status === 'draw') {
       toast('和棋：棋盘已满', 'info', 3000);
     } else if (win) {
-      victoryFX(`${win.player === BLACK ? '黑棋' : '白棋'}连成五子${humanWon ? ' · 你赢了' : ''}`);
-      toast(humanWon ? '五连成线，你赢了！' : '五连成线，这一局对手拿下', humanWon ? 'win' : 'danger', 3600);
+      const winner = win.player === BLACK ? '黑棋' : '白棋';
+      const loser = win.player === BLACK ? '白棋' : '黑棋';
+      victoryFX({ winner, loser, humanWon });
+      toast(humanWon ? '五连成线，承让了' : '五连成线，这一局对手拿下', humanWon ? 'win' : 'danger', 3600);
     } else {
       const winner = status === 'black-win' ? BLACK : WHITE;
+      victoryFX({
+        winner: winner === BLACK ? '黑棋' : '白棋',
+        loser: winner === BLACK ? '白棋' : '黑棋',
+        humanWon: winner === this.config.humanColor,
+      });
       toast(`${winner === BLACK ? '黑棋' : '白棋'}中盘胜（对方认输）`, 'info', 3000);
     }
     this.listeners.onGameOver?.(status, win);
@@ -466,13 +528,14 @@ export class GameController {
         y: a.y,
         weight,
         kind: a.five || a.doubleThreat !== 'none' ? 'win' : 'attack',
+        side: color,
       });
     }
     const defend = threatMap(cells, this.size, other(color), { radius: 2, limit: 40 });
     const dmax = Math.max(...defend.map((a) => a.score), 1);
     for (const a of defend) {
       if (a.score < dmax * 0.28) continue;
-      out.push({ x: a.x, y: a.y, weight: Math.pow(a.score / dmax, 0.42) * 0.9, kind: 'defense' });
+      out.push({ x: a.x, y: a.y, weight: Math.pow(a.score / dmax, 0.42) * 0.9, kind: 'defense', side: other(color) });
     }
     return out;
   }
