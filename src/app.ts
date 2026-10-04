@@ -12,6 +12,8 @@ import { HomeView } from './views/home';
 import { LessonsView } from './views/lessons';
 import { OnlineView } from './views/online';
 import { PlayView } from './views/play';
+import { bindInkFeedback } from './ui/ink';
+import { clearEffects } from './ui/fx';
 
 export interface Prefs {
   theme: 'ink' | 'paper';
@@ -43,7 +45,7 @@ export interface View {
 }
 
 const DEFAULT_PREFS: Prefs = {
-  theme: 'ink',
+  theme: 'paper',
   sound: true,
   showCoords: true,
   showNumbers: false,
@@ -92,6 +94,13 @@ export function startApp(root: HTMLElement): void {
   prefs.stats = { ...DEFAULT_PREFS.stats, ...(prefs.stats ?? {}) };
   prefs.progress = { ...(prefs.progress ?? {}) };
 
+  // 首次进入宣纸视觉版本采用新的主主题，之后继续记住用户的选择。
+  if (store.get<string>('visual-edition', '') !== 'xuan-v1') {
+    prefs.theme = 'paper';
+    store.set('visual-edition', 'xuan-v1');
+    store.set('prefs', prefs);
+  }
+
   let current: View | null = null;
 
   const ctx: AppContext = {
@@ -110,6 +119,7 @@ export function startApp(root: HTMLElement): void {
   };
 
   applyTheme(prefs.theme);
+  bindInkFeedback(root);
   sound.setEnabled(prefs.sound);
 
   const shell = el('div', { class: 'shell' });
@@ -123,7 +133,7 @@ export function startApp(root: HTMLElement): void {
   const navItems: Array<[RouteName, string, string, string]> = [
     ['home', '首页', 'home', '#/'],
     ['ai', '人机对战', 'swords', '#/ai'],
-    ['online', '在线联机', 'users', '#/online'],
+    ['online', '双人对战', 'users', '#/online'],
     ['lessons', '定式道场', 'book', '#/lessons'],
   ];
 
@@ -132,7 +142,7 @@ export function startApp(root: HTMLElement): void {
     const brand = el(
       'button',
       { class: 'brand', type: 'button', 'aria-label': '返回首页', onclick: () => ctx.navigate('#/') },
-      sealMark(),
+      el('img', { class: 'brand__mark', src: `${import.meta.env.BASE_URL}favicon.svg`, width: '34', height: '34', alt: '' }),
       el(
         'span',
         { class: 'brand__text' },
@@ -146,7 +156,7 @@ export function startApp(root: HTMLElement): void {
         el('button', {
           class: 'nav__link',
           type: 'button',
-          'aria-current': currentRoute.name === name ? 'page' : 'false',
+          'aria-current': (currentRoute.name === name || name === 'online' && currentRoute.name === 'local') ? 'page' : 'false',
           text: label,
           onclick: () => ctx.navigate(hash),
         }),
@@ -174,7 +184,8 @@ export function startApp(root: HTMLElement): void {
         class: 'btn btn--icon btn--ghost',
         type: 'button',
         title: prefs.sound ? '关闭音效' : '开启音效',
-        'aria-label': '切换音效',
+        'aria-label': prefs.sound ? '关闭音效' : '开启音效',
+        'aria-pressed': String(prefs.sound),
         onclick: () => {
           prefs.sound = !prefs.sound;
           sound.setEnabled(prefs.sound);
@@ -217,7 +228,7 @@ export function startApp(root: HTMLElement): void {
           {
             class: 'tabbar__item',
             type: 'button',
-            'aria-current': currentRoute.name === name ? 'page' : 'false',
+            'aria-current': (currentRoute.name === name || name === 'online' && currentRoute.name === 'local') ? 'page' : 'false',
             onclick: () => ctx.navigate(hash),
           },
           icon(ico, 20),
@@ -232,6 +243,7 @@ export function startApp(root: HTMLElement): void {
   const render = () => {
     currentRoute = parseRoute();
     document.documentElement.dataset.route = currentRoute.name;
+    clearEffects();
     current?.destroy?.();
     clear(main);
     buildTopbar();
@@ -268,6 +280,7 @@ export function startApp(root: HTMLElement): void {
       case 'local':
         view = new PlayView(ctx, {
           mode: 'local',
+          onExit: () => ctx.navigate('#/online'),
           config: {
             black: 'human',
             white: 'human',
@@ -280,7 +293,7 @@ export function startApp(root: HTMLElement): void {
         });
         break;
       case 'online':
-        view = new OnlineView(ctx);
+        view = new OnlineView(ctx, currentRoute.params.get('r') ?? '', currentRoute.params.get('m') === 'online' ? 'online' : 'local');
         break;
       case 'lessons':
         view = new LessonsView(ctx, currentRoute.id);
@@ -318,14 +331,15 @@ export function startApp(root: HTMLElement): void {
   if (!location.hash) location.hash = '#/';
   render();
 
-  // 首次用户手势解锁音频
+  // 每次用户手势都允许恢复被浏览器暂停的声音，静音时不会创建音频上下文。
   const unlock = () => {
     sound.unlock();
-    window.removeEventListener('pointerdown', unlock);
-    window.removeEventListener('keydown', unlock);
   };
-  window.addEventListener('pointerdown', unlock, { once: true });
-  window.addEventListener('keydown', unlock, { once: true });
+  window.addEventListener('pointerdown', unlock, { capture: true });
+  window.addEventListener('keydown', unlock, { capture: true });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) sound.stopAll();
+  });
 
   // 键盘快捷键（对弈页）：U 悔棋 / H 提示 / A 分析 / R 重开
   window.addEventListener('keydown', (e) => {
@@ -343,42 +357,7 @@ export function startApp(root: HTMLElement): void {
 
 function applyTheme(theme: 'ink' | 'paper'): void {
   document.documentElement.dataset.theme = theme;
-  const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', theme === 'ink' ? '#12100d' : '#e9dfc9');
-}
-
-function sealMark(): SVGSVGElement {
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 40 40');
-  svg.setAttribute('class', 'brand__seal');
-  svg.setAttribute('aria-hidden', 'true');
-  const rect = document.createElementNS(ns, 'rect');
-  rect.setAttribute('x', '1');
-  rect.setAttribute('y', '1');
-  rect.setAttribute('width', '38');
-  rect.setAttribute('height', '38');
-  rect.setAttribute('rx', '7');
-  rect.setAttribute('class', 'brand__seal-bg');
-  const text = document.createElementNS(ns, 'text');
-  text.setAttribute('x', '20');
-  text.setAttribute('y', '26');
-  text.setAttribute('text-anchor', 'middle');
-  text.setAttribute('font-size', '20');
-  text.setAttribute('font-family', '"Noto Serif SC", serif');
-  text.setAttribute('font-weight', '700');
-  text.setAttribute('class', 'brand__seal-text');
-  text.textContent = '墨';
-  const inner = document.createElementNS(ns, 'rect');
-  inner.setAttribute('x', '4.5');
-  inner.setAttribute('y', '4.5');
-  inner.setAttribute('width', '31');
-  inner.setAttribute('height', '31');
-  inner.setAttribute('rx', '4');
-  inner.setAttribute('class', 'brand__seal-inner');
-  inner.setAttribute('fill', 'none');
-  inner.setAttribute('stroke-width', '1.2');
-  svg.append(rect, text, inner);
-  return svg;
+  const metas = document.querySelectorAll('meta[name="theme-color"]');
+  metas.forEach(meta => meta.setAttribute('content', theme === 'ink' ? '#25261f' : '#f1eee2'));
 }
 

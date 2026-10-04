@@ -24,6 +24,11 @@ export class SoundEngine {
   private master: GainNode | null = null;
   private noiseBuffer: AudioBuffer | null = null;
   private enabled = true;
+  private readonly sources = new Set<AudioScheduledSourceNode>();
+  private readonly scheduled = new Set<ReturnType<typeof setTimeout>>();
+  private resuming: Promise<void> | null = null;
+  private pendingSound: SoundName | null = null;
+  private generation = 0;
 
   constructor(enabled = true) {
     this.enabled = enabled;
@@ -31,7 +36,14 @@ export class SoundEngine {
 
   /** 必须由用户手势触发一次，才能解锁音频上下文 */
   unlock(): void {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !this.enabled || this.hidden) return;
+    if (this.ctx?.state === 'closed') {
+      this.stopAll();
+      this.ctx = null;
+      this.master = null;
+      this.noiseBuffer = null;
+      this.resuming = null;
+    }
     if (!this.ctx) {
       const Ctor: typeof AudioContext | undefined =
         window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
@@ -44,18 +56,84 @@ export class SoundEngine {
         this.noiseBuffer = this.createNoise(this.ctx);
       } catch {
         this.ctx = null;
+        this.master = null;
+        this.noiseBuffer = null;
       }
     }
-    if (this.ctx?.state === 'suspended') void this.ctx.resume();
+    const ctx = this.ctx;
+    if (!ctx || ctx.state === 'running' || this.resuming) return;
+    // 每次真实用户手势都可重试。一次恢复失败不能永久失去声音。
+    try {
+      this.resuming = ctx.resume().then(() => {
+        if (ctx !== this.ctx) return;
+        this.resuming = null;
+        const pending = this.pendingSound;
+        this.pendingSound = null;
+        if (pending && this.ready) this.play(pending);
+      }).catch(() => {
+        this.resuming = null;
+        this.pendingSound = null;
+      });
+    } catch {
+      this.resuming = null;
+      this.pendingSound = null;
+    }
   }
 
   setEnabled(on: boolean): void {
     this.enabled = on;
-    if (this.master) this.master.gain.value = on ? 0.5 : 0;
+    if (!on) this.stopAll();
+    if (this.master && this.ctx) {
+      this.master.gain.cancelScheduledValues(this.ctx.currentTime);
+      this.master.gain.setValueAtTime(on ? 0.5 : 0, this.ctx.currentTime);
+    }
   }
 
   get isEnabled(): boolean {
     return this.enabled;
+  }
+
+  /** 取消尚未播放的反馈，避免静音、切页或重开后补播旧声音。 */
+  cancelPending(): void {
+    this.generation++;
+    this.pendingSound = null;
+    for (const timer of this.scheduled) clearTimeout(timer);
+    this.scheduled.clear();
+  }
+
+  stopAll(): void {
+    this.cancelPending();
+    for (const source of this.sources) {
+      try { source.stop(); } catch { /* 已结束的音源无需再停。 */ }
+    }
+    this.sources.clear();
+  }
+
+  /** 延迟音效与当前声音会话绑定，不追补暂停或静音期间的事件。 */
+  schedule(name: SoundName, delayMs: number): void {
+    if (!this.enabled || this.hidden || !this.ctx || (!this.ready && !this.resuming)) return;
+    const generation = this.generation;
+    const timer = setTimeout(() => {
+      this.scheduled.delete(timer);
+      if (generation === this.generation && this.ready) this.play(name);
+    }, Math.max(0, delayMs));
+    this.scheduled.add(timer);
+  }
+
+  private get hidden(): boolean {
+    return typeof document !== 'undefined' && document.hidden;
+  }
+
+  private track(sources: AudioScheduledSourceNode[], nodes: AudioNode[]): void {
+    let remaining = sources.length;
+    for (const source of sources) {
+      this.sources.add(source);
+      source.onended = () => {
+        this.sources.delete(source);
+        source.disconnect();
+        if (--remaining === 0) nodes.forEach(node => node.disconnect());
+      };
+    }
   }
 
   private createNoise(ctx: AudioContext): AudioBuffer {
@@ -72,7 +150,7 @@ export class SoundEngine {
   }
 
   private get ready(): boolean {
-    return this.enabled && this.ctx !== null && this.master !== null;
+    return this.enabled && !this.hidden && this.ctx?.state === 'running' && this.master !== null;
   }
 
   private now(): number {
@@ -93,6 +171,7 @@ export class SoundEngine {
     g.gain.linearRampToValueAtTime(gain, at + 0.004);
     g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
     src.connect(bp).connect(g).connect(this.master);
+    this.track([src], [bp, g]);
     src.start(at);
     src.stop(at + dur + 0.02);
   }
@@ -119,6 +198,7 @@ export class SoundEngine {
     osc.connect(lp);
     osc2.connect(g2).connect(lp);
     lp.connect(g).connect(this.master);
+    this.track([osc, osc2], [g2, lp, g]);
     osc.start(at);
     osc2.start(at);
     osc.stop(at + dur + 0.05);
@@ -126,7 +206,11 @@ export class SoundEngine {
   }
 
   play(name: SoundName): void {
-    if (!this.ready) return;
+    if (!this.ready) {
+      // 首次点击只保留最新的一声反馈，恢复后不倾倒历史事件。
+      if (this.enabled && !this.hidden && this.resuming) this.pendingSound = name;
+      return;
+    }
     const t = this.now() + 0.001;
     switch (name) {
       case 'place-black':
@@ -180,6 +264,7 @@ export class SoundEngine {
         g.gain.linearRampToValueAtTime(0.34, t + 0.05);
         g.gain.exponentialRampToValueAtTime(0.0001, t + 0.44);
         src.connect(bp).connect(g).connect(this.master);
+        this.track([src], [bp, g]);
         src.start(t);
         src.stop(t + 0.5);
         this.burst(t + 0.26, 220, 0.7, 0.5, 0.26);

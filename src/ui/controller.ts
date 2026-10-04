@@ -14,7 +14,7 @@ import { BLACK, WHITE, other, type GameStatus, type Move, type Player, type Poin
 import { sound } from '../ui/audio';
 import { Clock, clockConfigOf, type ClockMode, type ClockState } from '../ui/clock';
 import { clearToasts, toast } from '../ui/dom';
-import { killSlash, openingBanner, victoryFX } from '../ui/fx';
+import { clearEffects, killSlash, openingBanner, victoryFX } from '../ui/fx';
 import type { HeatCell, MarkerCell } from '../ui/renderer';
 
 export type Seat = 'human' | 'ai' | 'remote' | 'none';
@@ -128,6 +128,7 @@ export class GameController {
 
   /** 开局 / 重开 */
   start(config?: Partial<GameConfig>): void {
+    clearEffects();
     if (config) this.config = { ...this.config, ...config };
     this.board = new Board({ size: this.config.size, rules: this.config.rules });
     this.lastBookKey = '';
@@ -151,6 +152,7 @@ export class GameController {
   }
 
   dispose(): void {
+    clearEffects();
     this.disposed = true;
     this.clock.dispose();
     this.destroyed = true;
@@ -407,6 +409,7 @@ export class GameController {
   /** 悔棋：AI 模式回退两手，人人模式回退一手 */
   undo(count?: number): boolean {
     if (this.board.moveCount === 0) return false;
+    clearEffects();
     const n =
       count ??
       (this.config.black === 'ai' || this.config.white === 'ai' ? (this.board.moveCount >= 2 ? 2 : 1) : 1);

@@ -11,7 +11,7 @@
 export type NetRole = 'host' | 'guest';
 
 export type NetMessage =
-  | { t: 'hello'; name: string; size: number; rules: string; version: number }
+  | { t: 'hello'; name: string; size: number; rules: string; clock?: string; version: number }
   | { t: 'ready'; name: string }
   | { t: 'start'; black: NetRole; size: number; rules: string; first: number }
   | { t: 'move'; x: number; y: number; color: 1 | 2; ply: number; ms?: number }
@@ -29,7 +29,7 @@ export type NetMessage =
 
 export interface NetHandlers {
   onMessage?: (msg: NetMessage) => void;
-  onOpen?: () => void;
+  onOpen?: (session: NetSession) => void;
   onClose?: () => void;
   onError?: (message: string) => void;
   onLatency?: (ms: number) => void;
@@ -102,31 +102,37 @@ export class NetSession {
     const peer = new Peer(PREFIX + code, { debug: 0 }) as unknown as PeerLike;
     const session = new NetSession('host', code, peer, handlers);
 
-    await new Promise<void>((resolve, reject) => {
-      const timer = window.setTimeout(() => reject(new Error('信令服务器连接超时，请检查网络后重试')), 12000);
-      peer.on('open', (() => {
-        window.clearTimeout(timer);
-        resolve();
-      }) as never);
-      peer.on('error', ((err: { type?: string; message?: string }) => {
-        window.clearTimeout(timer);
-        const type = err?.type ?? '';
-        if (type === 'unavailable-id') reject(new Error('房间码已被占用，请换一个'));
-        else if (type === 'peer-unavailable') reject(new Error('无法连接到对手'));
-        else if (type === 'network' || type === 'server-error') {
-          reject(new Error('无法连接联机服务器（可能被网络环境拦截），可先用「本地双人」对弈'));
-        } else reject(new Error(err?.message ?? '联机失败'));
-      }) as never);
-    });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const timer = window.setTimeout(() => reject(new Error('信令服务器连接超时，请检查网络后重试')), 12000);
+        peer.on('open', (() => {
+          window.clearTimeout(timer);
+          resolve();
+        }) as never);
+        peer.on('error', ((err: { type?: string; message?: string }) => {
+          window.clearTimeout(timer);
+          const type = err?.type ?? '';
+          if (type === 'unavailable-id') reject(new Error('房间码已被占用，请换一个'));
+          else if (type === 'peer-unavailable') reject(new Error('无法连接到对手'));
+          else if (type === 'network' || type === 'server-error') {
+            reject(new Error('无法连接联机服务器（可能被网络环境拦截），可先用「本地双人」对弈'));
+          } else reject(new Error(err?.message ?? '联机失败'));
+        }) as never);
+      });
+    } catch (err) {
+      session.close();
+      throw err;
+    }
 
     peer.on('connection', ((conn: DataConnectionLike) => {
-      if (session.conn?.open) {
+      if (session.closed || session.conn) {
         conn.close();
         return;
       }
       session.attach(conn);
     }) as never);
-    peer.on('disconnected', (() => handlers.onClose?.()) as never);
+    // 信令短暂断开不等于已建立的数据通道断开。
+    peer.on('disconnected', (() => { if (!session.connected && !session.closed) handlers.onError?.('联机服务连接中断，请重新创建房间'); }) as never);
     return session;
   }
 
@@ -136,42 +142,56 @@ export class NetSession {
     const peer = new Peer(undefined, { debug: 0 }) as unknown as PeerLike;
     const session = new NetSession('guest', code, peer, handlers);
 
-    await new Promise<void>((resolve, reject) => {
-      const timer = window.setTimeout(() => reject(new Error('信令服务器连接超时，请检查网络后重试')), 12000);
-      peer.on('open', (() => {
-        window.clearTimeout(timer);
-        const conn = peer.connect(PREFIX + code, { reliable: true });
-        session.attach(conn);
-        const openTimer = window.setTimeout(() => {
-          if (!conn.open) reject(new Error('房间不存在或对手已离线'));
-        }, 12000);
-        conn.on('open', (() => {
+    try {
+      await new Promise<void>((resolve, reject) => {
+        let openTimer = 0;
+        const fail = (err: Error) => {
+          window.clearTimeout(timer);
           window.clearTimeout(openTimer);
-          resolve();
+          reject(err);
+        };
+        const timer = window.setTimeout(() => fail(new Error('信令服务器连接超时，请检查网络后重试')), 12000);
+        peer.on('open', (() => {
+          window.clearTimeout(timer);
+          const conn = peer.connect(PREFIX + code, { reliable: true });
+          session.attach(conn);
+          openTimer = window.setTimeout(() => {
+            if (!conn.open) fail(new Error('房间不存在、已满或对手已离线'));
+          }, 12000);
+          conn.on('open', (() => {
+            window.clearTimeout(openTimer);
+            resolve();
+          }) as never);
+          conn.on('error', ((err: { message?: string }) => fail(new Error(err?.message ?? '加入房间失败'))) as never);
+          conn.on('close', (() => fail(new Error('房间已满或房主已离开'))) as never);
         }) as never);
-      }) as never);
-      peer.on('error', ((err: { type?: string; message?: string }) => {
-        window.clearTimeout(timer);
-        if (err?.type === 'peer-unavailable') reject(new Error('没有找到该房间，请确认房间码'));
-        else if (err?.type === 'network' || err?.type === 'server-error') {
-          reject(new Error('无法连接联机服务器（可能被网络环境拦截），可先用「本地双人」对弈'));
-        } else reject(new Error(err?.message ?? '加入房间失败'));
-      }) as never);
-    });
+        peer.on('error', ((err: { type?: string; message?: string }) => {
+          if (err?.type === 'peer-unavailable') fail(new Error('没有找到该房间，请确认房间码'));
+          else if (err?.type === 'network' || err?.type === 'server-error') {
+            fail(new Error('无法连接联机服务器（可能被网络环境拦截），可先用「本地双人」对弈'));
+          } else fail(new Error(err?.message ?? '加入房间失败'));
+        }) as never);
+      });
+    } catch (err) {
+      session.close();
+      throw err;
+    }
     return session;
   }
 
   private attach(conn: DataConnectionLike): void {
     this.conn = conn;
     conn.on('open', (() => {
-      this.handlers.onOpen?.();
+      if (this.closed) { conn.close(); return; }
+      this.handlers.onOpen?.(this);
+      if (this.closed) return;
       for (const msg of this.pendingQueue) this.rawSend(msg);
       this.pendingQueue = [];
       this.startPing();
     }) as never);
     conn.on('data', ((data: unknown) => {
       const msg = data as NetMessage;
-      if (!msg || typeof msg !== 'object') return;
+      if (this.closed || !msg || typeof msg !== 'object') return;
       if (msg.t === 'ping') {
         this.rawSend({ t: 'pong', ts: msg.ts });
         return;
@@ -182,8 +202,12 @@ export class NetSession {
       }
       this.handlers.onMessage?.(msg);
     }) as never);
-    conn.on('close', (() => this.handlers.onClose?.()) as never);
-    conn.on('error', ((err: { message?: string }) => this.handlers.onError?.(err?.message ?? '连接异常')) as never);
+    conn.on('close', (() => {
+      window.clearInterval(this.pingTimer);
+      this.pendingQueue = [];
+      if (!this.closed) this.handlers.onClose?.();
+    }) as never);
+    conn.on('error', ((err: { message?: string }) => { if (!this.closed) this.handlers.onError?.(err?.message ?? '连接异常'); }) as never);
   }
 
   private startPing(): void {
@@ -212,7 +236,9 @@ export class NetSession {
   }
 
   close(): void {
+    if (this.closed) return;
     this.closed = true;
+    this.pendingQueue = [];
     window.clearInterval(this.pingTimer);
     try {
       this.conn?.close();

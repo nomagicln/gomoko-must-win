@@ -48,37 +48,11 @@
   color: inherit;
   -webkit-tap-highlight-color: transparent;
 }
-.brand__seal-bg {
-  fill: var(--seal-mark-bg, var(--paper-100));
-}
-.brand__seal-text {
-  fill: var(--seal-mark-fg, #14161a);
-}
-.brand__seal-inner {
-  stroke: var(--seal-mark-inner, rgba(20, 22, 26, 0.4));
-  stroke-width: 1.2;
-}
-
-.brand__seal {
+.brand__mark {
   width: 34px;
   height: 34px;
   flex: none;
-  filter: drop-shadow(0 6px 14px rgba(214, 219, 224, 0.35));
-  transition: transform var(--dur-slow) var(--ease-spring);
-}
-.brand:hover .brand__seal-bg {
-  fill: var(--seal-mark-bg, var(--paper-100));
-}
-.brand__seal-text {
-  fill: var(--seal-mark-fg, #14161a);
-}
-.brand__seal-inner {
-  stroke: var(--seal-mark-inner, rgba(20, 22, 26, 0.4));
-  stroke-width: 1.2;
-}
-
-.brand__seal {
-  transform: rotate(-8deg) scale(1.06);
+  display: block;
 }
 .brand__text {
   display: flex;
@@ -311,11 +285,7 @@
   margin-bottom: var(--sp-4);
 }
 .hero__title .ink {
-  background: var(--hero-grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
+  color: var(--text-strong);
 }
 .hero__title .stroke {
   position: relative;
@@ -395,92 +365,6 @@
   letter-spacing: 0.16em;
   color: var(--text-faint);
   white-space: nowrap;
-}
-
-/* ---- 入口卡片 ---- */
-.entry-grid {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--sp-4);
-}
-@media (min-width: 720px) {
-  .entry-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (min-width: 1100px) {
-  .entry-grid {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-}
-
-.entry {
-  position: relative;
-  text-align: left;
-  padding: var(--sp-5) var(--sp-4) var(--sp-4);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  background: var(--bg-panel);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  cursor: pointer;
-  overflow: hidden;
-  isolation: isolate;
-  transition: transform var(--dur) var(--ease-spring), border-color var(--dur) var(--ease-out),
-    box-shadow var(--dur) var(--ease-out);
-  animation: cardIn var(--dur-slow) var(--ease-spring) both;
-  -webkit-tap-highlight-color: transparent;
-  min-height: 168px;
-  color: inherit;
-  font: inherit;
-}
-
-.entry:hover {
-  transform: translateY(-4px);
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-lg);
-}
-
-.entry__index {
-  font-family: var(--font-latin);
-  font-size: 12px;
-  letter-spacing: 0.3em;
-  color: var(--accent);
-  opacity: 0.8;
-}
-.entry__title {
-  font-family: var(--font-display);
-  font-size: var(--step-2);
-  color: var(--text-strong);
-  margin: var(--sp-2) 0 var(--sp-2);
-  letter-spacing: 0.08em;
-}
-.entry__desc {
-  color: var(--text-dim);
-  font-size: var(--step--1);
-  line-height: 1.7;
-  margin-bottom: var(--sp-4);
-}
-.entry__foot {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: var(--step--2);
-  letter-spacing: 0.12em;
-  color: var(--text-faint);
-}
-.entry__arrow {
-  transition: transform var(--dur) var(--ease-spring);
-}
-.entry:hover .entry__arrow {
-  transform: translateX(4px);
-  color: var(--gold-text);
-}
-@keyframes cardIn {
-  from {
-    opacity: 0;
-    transform: translateY(18px);
-  }
 }
 
 /* ==========================================================================
@@ -1302,20 +1186,14 @@
 }
 .fx-glyph__char {
   position: relative;
-  font-family: 'Zhi Mang Xing', 'Long Cang', 'Ma Shan Zheng', 'Noto Serif SC', 'Songti SC', serif;
+  font-family: var(--font-brush);
   font-weight: 400;
-  line-height: 0.92;
+  line-height: 0.95;
   letter-spacing: 0.02em;
   white-space: nowrap;
-  background: var(--glyph-grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  -webkit-text-fill-color: transparent;
-  -webkit-text-stroke: 0.014em var(--glyph-rim, rgba(255, 208, 182, 0.55));
-  transform: rotate(var(--glyph-angle, 0deg)) skewX(-7deg);
+  color: var(--splash-glyph);
+  transform: rotate(var(--glyph-angle, 0deg));
   animation: brushWipe 480ms var(--ease-out) var(--glyph-delay, 0ms) both;
-  will-change: clip-path, transform, filter;
 }
 .fx-glyph__char--bleed {
   position: absolute;

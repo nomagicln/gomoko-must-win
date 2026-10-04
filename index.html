@@ -1,16 +1,16 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="ink">
+<html lang="zh-CN" data-theme="paper">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>墨韵五子棋 · Ink Gomoku — 人机对战 · 在线联机 · 定式道场</title>
+    <title>墨韵五子棋 · Ink Gomoku — 人机对战 · 双人对战 · 定式道场</title>
     <meta
       name="description"
       content="墨韵五子棋：纯前端五子棋道场。四档强度的人机对战、房间码在线联机、26 种开局定式交互教学，支持复盘、SGF 棋谱与移动端完美体验。"
     />
     <meta name="keywords" content="五子棋,连珠,gomoku,renju,定式,开局,人机对战,在线对战,棋谱" />
     <meta name="author" content="nomagicln" />
-    <meta name="color-scheme" content="dark light" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="theme-color" content="#111213" media="(prefers-color-scheme: dark)" />
     <meta name="theme-color" content="#ece7db" media="(prefers-color-scheme: light)" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -44,12 +44,20 @@
       href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Ma+Shan+Zheng&family=Zhi+Mang+Xing&family=Long+Cang&family=Cinzel:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap"
     />
 
+    <script>
+      try {
+        if (JSON.parse(localStorage.getItem('inkgomoku:visual-edition')) === 'xuan-v1') {
+          const prefs = JSON.parse(localStorage.getItem('inkgomoku:prefs'));
+          if (prefs?.theme === 'ink') document.documentElement.dataset.theme = 'ink';
+        }
+      } catch (_) {}
+    </script>
     <style>
       /* ---- 首屏引导：不依赖 JS 也能看到品牌，避免白屏 ---- */
       html,
       body {
         margin: 0;
-        background: #111213;
+        background: #f1eee2;
       }
       #boot {
         position: fixed;
@@ -57,11 +65,14 @@
         display: grid;
         place-items: center;
         background:
-          radial-gradient(120% 90% at 50% 0%, #1c1e20 0%, #111213 60%, #0a0b0c 100%);
+          radial-gradient(120% 90% at 50% 0%, #faf8f2 0%, #f1eee2 60%, #e9e5d9 100%);
         z-index: 9999;
         transition: opacity 0.6s ease, visibility 0.6s;
         font-family: 'LXGW WenKai', 'Kaiti SC', 'STKaiti', 'KaiTi', '楷体', 'Noto Serif SC', serif;
       }
+      [data-theme='ink'] #boot { background: #25261f; }
+      [data-theme='ink'] .boot-mark { color: #f4f1e8; }
+      [data-theme='ink'] .boot-sub { color: #c2c0b3; }
       #boot[hidden] {
         opacity: 0;
         visibility: hidden;
@@ -69,7 +80,7 @@
       }
       .boot-mark {
         text-align: center;
-        color: #e6e7e8;
+        color: #272b24;
         animation: bootIn 1s cubic-bezier(0.2, 0.8, 0.2, 1) both;
       }
       .boot-stone {
@@ -93,7 +104,7 @@
         font-family: 'IBM Plex Mono', ui-monospace, monospace;
         font-size: 11px;
         letter-spacing: 0.3em;
-        color: #b9bec4;
+        color: #626357;
         text-transform: uppercase;
       }
       @keyframes bootIn {

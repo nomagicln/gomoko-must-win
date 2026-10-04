@@ -8,6 +8,7 @@
  *  · 移动端支持「放大镜」精确点选（手指不遮挡落点）
  */
 
+import { paintWetInk } from './ink';
 import { isStar } from '../core/coords';
 import type { Move, Player, Point } from '../core/types';
 import { BLACK, WHITE } from '../core/types';
@@ -152,13 +153,13 @@ export class BoardRenderer {
       x: move.x,
       y: move.y,
       start: now(),
-      color: 'rgba(222, 226, 230, 0.8)',
+      color: '#272b24',
     });
   }
 
   flashWin(line: Point[]): void {
     this.winAnim = { line: [...line], start: now() };
-    for (const p of line) this.ripples.push({ x: p.x, y: p.y, start: now() + 200, color: 'rgba(236, 240, 244, 0.85)' });
+    for (const p of line) this.ripples.push({ x: p.x, y: p.y, start: now() + 200, color: '#272b24' });
     this.ensureLoop();
   }
 
@@ -286,9 +287,9 @@ export class BoardRenderer {
 
     // 1) 宣纸底
     const grad = g.createRadialGradient(size * 0.42, size * 0.32, size * 0.05, size * 0.5, size * 0.5, size * 0.78);
-    grad.addColorStop(0, '#f4ecd6');
-    grad.addColorStop(0.55, '#ece0c4');
-    grad.addColorStop(1, '#d9c8a5');
+    grad.addColorStop(0, '#f8f5ec');
+    grad.addColorStop(0.55, '#eee9dc');
+    grad.addColorStop(1, '#e1dac8');
     g.fillStyle = grad;
     g.fillRect(0, 0, size, size);
 
@@ -306,7 +307,7 @@ export class BoardRenderer {
     // 3) 四角微微加深（做旧）
     const vg = g.createRadialGradient(size / 2, size / 2, size * 0.34, size / 2, size / 2, size * 0.75);
     vg.addColorStop(0, 'rgba(120,96,58,0)');
-    vg.addColorStop(1, 'rgba(112,88,50,0.24)');
+    vg.addColorStop(1, 'rgba(96,88,64,0.1)');
     g.fillStyle = vg;
     g.fillRect(0, 0, size, size);
 
@@ -426,6 +427,7 @@ export class BoardRenderer {
   };
 
   private hasActiveAnimation(): boolean {
+    if (this.reduced) return false;
     if (this.ripples.length > 0) return true;
     if (this.winAnim && now() - this.winAnim.start < 2600) return true;
     if (this.pathAnim && now() - this.pathAnim.start < 2400) return true;
@@ -567,6 +569,17 @@ export class BoardRenderer {
     const cells = this.state.cells;
     const t = now();
     const r = this.cell * 0.455;
+    // 落子先渗出局部湿墨，再绘制棋子；墨迹不会遮住棋形。
+    if (!this.reduced) for (const rp of this.ripples) {
+      const progress = (t - rp.start) / 700;
+      if (progress < 0 || progress > 1) continue;
+      const point = this.toCanvas(rp);
+      ctx.save();
+      ctx.globalAlpha = 1 - progress;
+      paintWetInk(ctx, point.x, point.y, this.cell * 0.7, progress,
+        1357 + rp.x * 71 + rp.y * 113, rp.color);
+      ctx.restore();
+    }
     for (let y = 0; y < n; y++) {
       for (let x = 0; x < n; x++) {
         const v = cells[y * n + x];
@@ -589,20 +602,6 @@ export class BoardRenderer {
         const c = this.toCanvas({ x, y });
         this.drawStone(ctx, c.x, c.y, r * scale, v as Player, alpha, shadow);
       }
-    }
-    // 涟漪
-    for (const rp of this.ripples) {
-      const p = Math.min(1, (t - rp.start) / 700);
-      if (p < 0) continue;
-      const c = this.toCanvas(rp);
-      ctx.save();
-      ctx.globalAlpha = (1 - p) * 0.75;
-      ctx.strokeStyle = rp.color;
-      ctx.lineWidth = Math.max(1, this.cell * 0.05 * (1 - p));
-      ctx.beginPath();
-      ctx.arc(c.x, c.y, this.cell * (0.34 + p * 0.85), 0, TAU);
-      ctx.stroke();
-      ctx.restore();
     }
   }
 

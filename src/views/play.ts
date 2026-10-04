@@ -22,6 +22,7 @@ export interface NetBridge {
   sendMove(move: Move): void;
   /** 送出控制类消息 */
   sendUndo(): void;
+  sendRematch(): void;
   sendResign(color: Player): void;
   sendChat(text: string): void;
   label: string;
@@ -106,7 +107,9 @@ export class PlayView implements View {
   /* ------------------------------------------------------------------ */
 
   private mountSetup(): void {
+    this.root.classList.add('view--setup');
     const prefs = this.ctx.prefs;
+    let refreshSummary = () => {};
     let difficulty: Difficulty = prefs.difficulty;
     let humanColor: Player = prefs.humanColor;
     let rules: RuleSet = prefs.rules;
@@ -115,7 +118,15 @@ export class PlayView implements View {
 
     const diffGrid = el('div', { class: 'diff-grid' });
     const renderDiff = () => {
-      clear(diffGrid);
+      if (diffGrid.childElementCount) {
+        [...diffGrid.children].forEach((node, i) => {
+          const selected = DIFFICULTIES[i].id === difficulty;
+          node.classList.toggle('is-active', selected);
+          node.setAttribute('aria-pressed', String(selected));
+        });
+        refreshSummary();
+        return;
+      }
       for (const d of DIFFICULTIES) {
         diffGrid.appendChild(
           el(
@@ -130,6 +141,7 @@ export class PlayView implements View {
                 renderDiff();
               },
             },
+            el('span', { class: 'diff-card__index', text: `0${DIFFICULTIES.indexOf(d) + 1}` }),
             el('div', { class: 'diff-card__name', text: d.name }),
             el('div', { class: 'diff-card__en', text: d.en }),
             el('div', { class: 'diff-card__strength', text: d.strength }),
@@ -142,7 +154,11 @@ export class PlayView implements View {
 
     const colorSeg = el('div', { class: 'segmented', role: 'group', 'aria-label': '选择执子' });
     const renderColor = () => {
-      clear(colorSeg);
+      if (colorSeg.childElementCount) {
+        [...colorSeg.children].forEach((node, i) => node.setAttribute('aria-pressed', String([BLACK, WHITE][i] === humanColor)));
+        refreshSummary();
+        return;
+      }
       ([
         [BLACK, '执黑先行'],
         [WHITE, '执白后行'],
@@ -166,7 +182,11 @@ export class PlayView implements View {
 
     const rulesSeg = el('div', { class: 'segmented', role: 'group', 'aria-label': '选择规则' });
     const renderRules = () => {
-      clear(rulesSeg);
+      if (rulesSeg.childElementCount) {
+        [...rulesSeg.children].forEach((node, i) => node.setAttribute('aria-pressed', String(['freestyle', 'renju'][i] === rules)));
+        refreshSummary();
+        return;
+      }
       ([
         ['freestyle', '无禁手'],
         ['renju', '连珠禁手'],
@@ -190,7 +210,11 @@ export class PlayView implements View {
 
     const sizeSeg = el('div', { class: 'segmented', role: 'group', 'aria-label': '选择棋盘大小' });
     const renderSize = () => {
-      clear(sizeSeg);
+      if (sizeSeg.childElementCount) {
+        [...sizeSeg.children].forEach((node, i) => node.setAttribute('aria-pressed', String([15, 19][i] === size)));
+        refreshSummary();
+        return;
+      }
       [15, 19].forEach((s) => {
         sizeSeg.appendChild(
           el('button', {
@@ -211,7 +235,11 @@ export class PlayView implements View {
 
     const clockSeg = el('div', { class: 'segmented', role: 'group', 'aria-label': '选择计时方式' });
     const renderClock = () => {
-      clear(clockSeg);
+      if (clockSeg.childElementCount) {
+        [...clockSeg.children].forEach((node, i) => node.setAttribute('aria-pressed', String(CLOCK_PRESETS.map(p => p.id)[i] === clockMode)));
+        refreshSummary();
+        return;
+      }
       for (const preset of CLOCK_PRESETS) {
         clockSeg.appendChild(
           el('button', {
@@ -260,39 +288,49 @@ export class PlayView implements View {
       '开始对局',
     );
 
+    const summary = el('p', { class: 'setup__summary', role: 'status' });
+    const help = el('p', { class: 'setup__help' });
+    refreshSummary = () => {
+      summary.textContent = `${DIFFICULTIES.find(d => d.id === difficulty)?.name} · ${humanColor === BLACK ? '执黑先行' : '执白后行'} · ${size} 路 · ${clockModeLabel(clockMode)}`;
+      help.textContent = rules === 'renju'
+        ? '黑棋三三、四四、长连为禁手，棋盘上以墨叉标出。'
+        : '黑白双方轮流落子，先连成五子者胜。';
+      if (clockMode !== 'none') help.textContent += ' 用时归零判负，落子后加秒。';
+    };
+    refreshSummary();
     append(this.root, [
-      el(
-        'div',
-        { class: 'page-head' },
-        el('div', { class: 'hero__eyebrow', text: 'Human vs Machine' }),
-        el('h1', { class: 'page-title', text: '人机对战' }),
-        el('p', { class: 'page-lead', text: '四档强度，从陪你熟悉规则的入门，到几乎不犯错的宗师。AI 在浏览器里本地运算，你的棋谱不会离开这台设备。' }),
-      ),
-      el(
-        'section',
-        { class: 'section' },
-        el('div', { class: 'section__head' }, el('h2', { class: 'section__title', text: '选择对手' }), el('div', { class: 'section__rule' })),
-        diffGrid,
-      ),
-      el(
-        'section',
-        { class: 'section' },
-        el('div', { class: 'section__head' }, el('h2', { class: 'section__title', text: '对局设定' }), el('div', { class: 'section__rule' })),
-        el(
-          'div',
-          { class: 'card' },
-          el(
-            'div',
-            { class: 'card__body stack' },
-            field('执子', colorSeg),
-            field('规则', rulesSeg),
-            field('棋盘', sizeSeg),
-            field('计时', clockSeg),
-            el('p', { class: 'faint', style: { fontSize: 'var(--step--1)', margin: '0' }, text: '连珠禁手规则下，黑棋的三三、四四、长连都会被标为禁手点（朱砂叉），不可落子。限时模式下超过可用时间即判负，每落一子获得加秒。' }),
+      el('div', { class: 'setup__head' },
+        el('div', { class: 'page-head' },
+          el('div', { class: 'hero__eyebrow', text: '一纸棋局 · 与墨过招' }),
+          el('h1', { class: 'page-title', text: '人机对战' }),
+          el('p', { class: 'page-lead', text: '选一位对手，落下你的第一子。' }),
+        ),
+        el('div', { class: 'setup__head-actions' },
+          el('div', { class: 'setup__start' }, summary, startBtn),
+          el('div', { class: 'setup__art', 'aria-hidden': 'true' },
+            el('span', { class: 'setup__art-glyph', text: '弈' }),
+            el('span', { class: 'setup__art-note', text: '黑白之间，自有天地' }),
           ),
         ),
       ),
-      el('div', { class: 'stack', style: { alignItems: 'center', marginTop: 'var(--sp-5)' } }, startBtn),
+      el('div', { class: 'setup__layout' },
+        el('section', { class: 'setup__opponents' },
+          el('div', { class: 'section__head' },
+            el('h2', { class: 'section__title', text: '选择对手' }),
+            el('span', { class: 'section__sub', text: '由浅入深，四档棋力' }),
+          ),
+          diffGrid,
+          el('p', { class: 'setup__local-note', text: 'AI 在这台设备上思考，棋谱也留在这里。' }),
+        ),
+        el('section', { class: 'setup__settings' },
+          el('div', { class: 'section__head' }, el('h2', { class: 'section__title', text: '对局设定' })),
+          el('div', { class: 'setup__fields' },
+            field('执子', colorSeg), field('规则', rulesSeg),
+            field('棋盘', sizeSeg), field('计时', clockSeg),
+          ),
+          help,
+        ),
+      ),
     ]);
   }
 
@@ -301,6 +339,7 @@ export class PlayView implements View {
   /* ------------------------------------------------------------------ */
 
   private mountGame(configOverride?: Partial<GameConfig>): void {
+    this.root.classList.remove('view--setup');
     const prefs = this.ctx.prefs;
     const config: GameConfig = {
       size: prefs.size,
@@ -456,7 +495,7 @@ export class PlayView implements View {
     const prefs = this.ctx.prefs;
 
     // ---- 回合卡 ----
-    const turnCard = el('div', { class: 'card turn-card', dataset: { tab: 'game' } });
+    const turnCard = el('div', { class: 'card turn-card', role: 'status', 'aria-live': 'polite', dataset: { tab: 'game' } });
     this.cards.turn = turnCard;
 
     // ---- 战术提示 ----
@@ -855,12 +894,12 @@ export class PlayView implements View {
       : this.thinking
         ? `AI 思考中（${DIFFICULTIES.find((d) => d.id === c.config.difficulty)?.name ?? ''}）`
         : turn === c.config.humanColor && seat === 'human'
-          ? '轮到你落子'
+          ? c.config.hotseat ? '黑棋落子' : '轮到你落子'
           : seat === 'remote'
             ? '等待对手落子'
             : turn === BLACK
-              ? '黑棋行棋'
-              : '白棋行棋';
+              ? '黑棋落子'
+              : '白棋落子';
     append(badge, [dot, el('span', { text: label })]);
 
     // 回合卡
@@ -868,10 +907,10 @@ export class PlayView implements View {
     if (card) {
       clear(card);
       const stone = el('div', { class: `turn-card__stone turn-card__stone--${turn === BLACK ? 'black' : 'white'}` });
-      const who = c.isOver ? '对局结束' : `${turn === BLACK ? '黑棋' : '白棋'}行棋`;
+      const who = label;
       const meta =
         seat === 'human'
-          ? '轮到你'
+          ? c.config.hotseat ? '本地双人 · 交替落子' : `你执${turn === BLACK ? '黑' : '白'} · 第 ${c.board.moveCount + 1} 手`
           : seat === 'ai'
             ? `${DIFFICULTIES.find((d) => d.id === c.config.difficulty)?.name ?? 'AI'} 正在计算`
             : '等待对手';
@@ -1167,6 +1206,11 @@ export class PlayView implements View {
   private confirmRestart(): void {
     const c = this.controller;
     if (!c) return;
+    if (this.options.mode === 'online' && this.options.net) {
+      this.options.net.sendRematch();
+      toast('已邀请对手重新开局，同意后双方交换先后手', 'info', 2600);
+      return;
+    }
     modal({
       title: '重新开局？',
       body: [el('p', { text: '当前棋谱将被清空。' })],
@@ -1397,4 +1441,3 @@ function scoreText(score: number): string {
   if (score < -80_000) return '稍处下风';
   return '均势';
 }
-

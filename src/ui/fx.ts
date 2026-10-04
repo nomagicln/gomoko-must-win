@@ -7,8 +7,17 @@
 
 import { el } from './dom';
 import { sound } from './audio';
+import { paintWetInk } from './ink';
 
 let layer: HTMLElement | null = null;
+
+/** 清掉上一页面/对局的视觉反馈与声音队列。 */
+export function clearEffects(): void {
+  layer?.replaceChildren();
+  slashNode = null;
+  document.body.classList.remove('ink-shake');
+  sound.stopAll();
+}
 
 export function fxLayer(): HTMLElement {
   if (!layer || !layer.isConnected) {
@@ -33,7 +42,7 @@ interface Rgb {
 
 function hexToRgb(hex: string): Rgb {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return { r: 185, g: 58, b: 43 };
+  if (!m) return { r: 36, g: 40, b: 33 };
   const n = parseInt(m[1], 16);
   return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
 }
@@ -114,15 +123,18 @@ function paintSplash(canvas: HTMLCanvasElement, opts: SplashOptions): void {
       const pts = 30;
       const radii: number[] = [];
       for (let i = 0; i < pts; i++) radii.push(0.66 + rng() * 0.46);
+      const points = radii.map((rr, i) => {
+        const a = i / pts * Math.PI * 2 + dir;
+        return { x: cx + ox + Math.cos(a) * rr * R * 1.12,
+          y: cy + oy + Math.sin(a) * rr * R * 0.94 };
+      });
       ctx.beginPath();
-      for (let i = 0; i <= pts; i++) {
-        const a = (i / pts) * Math.PI * 2 + dir;
-        const rr = radii[i % pts] * R;
-        const x = cx + ox + Math.cos(a) * rr * 1.12;
-        const y = cy + oy + Math.sin(a) * rr * 0.94;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
+      const last = points[pts - 1];
+      ctx.moveTo((last.x + points[0].x) / 2, (last.y + points[0].y) / 2);
+      points.forEach((point, i) => {
+        const next = points[(i + 1) % pts];
+        ctx.quadraticCurveTo(point.x, point.y, (point.x + next.x) / 2, (point.y + next.y) / 2);
+      });
       ctx.closePath();
       ctx.fillStyle = paint((0.34 - k * 0.08) * ease);
       ctx.fill();
@@ -206,14 +218,31 @@ function shake(strength = 1): void {
 
 /** 墨晕：从指定位置（默认屏幕中心）荡开一圈颜色 */
 export function inkBloom(opts: { x?: number; y?: number; color?: string; scale?: number } = {}): void {
-  const host = fxLayer();
-  const node = el('div', { class: 'fx-bloom' });
-  node.style.left = `${opts.x ?? window.innerWidth / 2}px`;
-  node.style.top = `${opts.y ?? window.innerHeight / 2}px`;
-  if (opts.color) node.style.setProperty('--bloom-color', opts.color);
-  if (opts.scale) node.style.width = node.style.height = `${opts.scale}px`;
-  host.appendChild(node);
-  window.setTimeout(() => node.remove(), 1200);
+  if (reducedMotion()) return;
+  const canvas = el('canvas', { class: 'fx-wet-bloom' });
+  const size = opts.scale ? Math.max(80, opts.scale * 8) : 180;
+  canvas.width = canvas.height = size * Math.min(devicePixelRatio || 1, 2);
+  canvas.style.width = canvas.style.height = `${size}px`;
+  canvas.style.left = `${(opts.x ?? innerWidth / 2) - size / 2}px`;
+  canvas.style.top = `${(opts.y ?? innerHeight / 2) - size / 2}px`;
+  fxLayer().appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) { canvas.remove(); return; }
+  ctx.scale(canvas.width / size, canvas.width / size);
+  const color = opts.color ?? themeInk('--splash-ink', '#242821');
+  const seed = Math.floor(Math.random() * 1e8) + 1;
+  const start = performance.now();
+  const step = () => {
+    if (!canvas.isConnected) return;
+    const progress = Math.min(1, (performance.now() - start) / 700);
+    ctx.clearRect(0, 0, size, size);
+    ctx.globalAlpha = 1 - progress;
+    paintWetInk(ctx, size / 2, size / 2, size * 0.28, progress, seed, color);
+    if (progress < 1) requestAnimationFrame(step);
+    else canvas.remove();
+  };
+  requestAnimationFrame(step);
+  window.setTimeout(() => canvas.remove(), 800);
 }
 
 /** 朱砂印章：如「五连」「禁手」 */
@@ -319,10 +348,10 @@ export function inkGlyph(
 export function killSlash(label: string, opts: { who?: string } = {}): void {
   sound.play('brush');
   shake(1);
-  inkBloom({ x: window.innerWidth / 2, y: window.innerHeight * 0.42, color: 'rgba(210, 216, 222, 0.22)' });
+  inkBloom({ x: window.innerWidth / 2, y: window.innerHeight * 0.42, color: themeInk('--splash-ink', '#242821') });
   const sub = [opts.who, label].filter(Boolean).join(' · ');
-  slashNode = inkGlyph('杀', sub, { size: 'slash', x: 0.5, y: 0.42, angle: -7, replace: true });
-  window.setTimeout(() => sound.play('seal'), 240);
+  slashNode = inkGlyph('杀', sub, { size: 'slash', x: 0.5, y: 0.42, angle: -7, replace: true, holdMs: 1600 });
+  sound.schedule('seal', 240);
 }
 
 /**
@@ -338,13 +367,16 @@ export function victorySplash(opts: {
   /** 是否为中盘胜（认输 / 超时） */
   resigned?: boolean;
 }): void {
-  const won = opts.outcome !== 'lose';
+  // 终局替换战术提示，避免两层纸面衬底和两组大字同时叠加。
+  fxLayer().querySelectorAll('.fx-glyph').forEach(node => node.remove());
+  slashNode = null;
+  sound.cancelPending();
   sound.play('brush');
   shake(opts.outcome === 'lose' ? 0.6 : 1.3);
-  inkBloom({ color: won ? 'rgba(224, 228, 233, 0.24)' : 'rgba(140, 146, 152, 0.2)' });
+  inkBloom({ color: themeInk('--splash-ink', '#242821') });
 
   const sub = `${opts.winner} ${opts.resigned ? '中盘胜' : '五连'}`;
-  if (won) {
+  if (opts.outcome !== 'lose') {
     inkGlyph('承让', sub, {
       size: 'victory',
       x: 0.5,
@@ -354,7 +386,7 @@ export function victorySplash(opts: {
       delay: 200,
       holdMs: 3400,
     });
-    window.setTimeout(() => sound.play('win'), 620);
+    sound.schedule('win', 620);
   } else {
     inkGlyph('败北', sub, {
       size: 'victory',
@@ -365,7 +397,7 @@ export function victorySplash(opts: {
       delay: 160,
       holdMs: 3400,
     });
-    window.setTimeout(() => sound.play('loss'), 520);
+    sound.schedule('loss', 520);
   }
 }
 
@@ -387,5 +419,5 @@ export function victoryFX(opts: {
 /** 禁手提示（轻微，不打断操作） */
 export function forbiddenFX(): void {
   sound.play('undo');
-  inkBloom({ color: 'rgba(185,58,43,0.28)' });
+  inkBloom({ color: themeInk('--splash-ink', '#242821') });
 }

@@ -63,9 +63,9 @@ await host.setup();
 await guest.setup();
 
 console.log('→ 房主创建房间');
-await host.send('Page.navigate', { url: `${BASE}?p2p=1#/online` });
+await host.send('Page.navigate', { url: `${BASE}#/online?m=online` });
 await new Promise((r) => setTimeout(r, 1500));
-await host.evaluate(`[...document.querySelectorAll('button')].find(x => x.textContent.includes('生成房间码')).click()`);
+await host.evaluate(`[...document.querySelectorAll('button')].find(x => x.textContent.trim() === '创建房间').click()`);
 
 let code = '';
 for (let i = 0; i < 30; i++) {
@@ -82,14 +82,7 @@ if (!code) {
 }
 
 console.log('→ 对手加入房间');
-await guest.send('Page.navigate', { url: `${BASE}?p2p=2#/online` });
-await new Promise((r) => setTimeout(r, 1500));
-await guest.evaluate(`(() => {
-  const input = [...document.querySelectorAll('.input')].find(i => i.placeholder.includes('房间码'));
-  input.value = '${code}';
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  [...document.querySelectorAll('button')].find(x => x.textContent.trim() === '加入房间').click();
-})()`);
+await guest.send('Page.navigate', { url: `${BASE}#/online?r=${code}` });
 
 let playing = false;
 for (let i = 0; i < 40; i++) {

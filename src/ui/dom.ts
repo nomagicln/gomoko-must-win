@@ -69,6 +69,7 @@ const PATHS: Record<string, string> = {
   close: 'M6 6l12 12M18 6 6 18',
   copy: 'M9 9h10v10H9zM5 15V5h10',
   share: 'M12 3v12M8 7l4-4 4 4M5 14v5h14v-5',
+  qr: 'M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM13 13h4v4h-4zM21 13v4M13 21h4M21 19v2h-2',
   link: 'M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7L11 7M14 10a4 4 0 0 0-5.7 0l-3 3A4 4 0 0 0 11 18.7L13 17',
   message: 'M20 12a7.5 7.5 0 0 1-11 6.6L4 20l1.4-4.5A7.5 7.5 0 1 1 20 12Z',
   zap: 'M13 2 4 14h6l-1 8 9-12h-6z',

@@ -95,46 +95,6 @@
   line-height: 1.7;
 }
 
-/* ---- 特性网格 ---- */
-.feature-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-  gap: var(--sp-3);
-}
-.feature {
-  padding: var(--sp-4);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border);
-  background: var(--bg-panel);
-  transition: border-color var(--dur) var(--ease-out), transform var(--dur) var(--ease-out);
-}
-.feature:hover {
-  border-color: var(--border-strong);
-  transform: translateY(-2px);
-}
-.feature__icon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  display: grid;
-  place-items: center;
-  color: var(--gold-text);
-  background: rgba(200, 205, 210, 0.1);
-  border: 1px solid rgba(200, 205, 210, 0.24);
-  margin-bottom: var(--sp-3);
-}
-.feature__title {
-  font-family: var(--font-display);
-  font-size: var(--step-1);
-  color: var(--text-strong);
-  margin-bottom: 6px;
-}
-.feature__desc {
-  font-size: var(--step--1);
-  color: var(--text-dim);
-  line-height: 1.75;
-}
-
 /* ---- 联机大厅 ---- */
 .net-grid {
   display: grid;
