@@ -10,7 +10,7 @@ vi.mock('../src/ui/renderer', () => ({ BoardRenderer: class {
 } }));
 vi.mock('../src/ai/engine', async importOriginal => ({
   ...await importOriginal<typeof import('../src/ai/engine')>(),
-  AIClient: class { detect = mocks.detect; think = mocks.think; dispose() {} },
+  AIClient: class { detect = mocks.detect; think = mocks.think; cancel() {} dispose() {} },
 }));
 vi.mock('../src/ui/audio', () => ({ sound: { play: vi.fn(), unlock: vi.fn() } }));
 vi.mock('../src/ui/fx', () => ({ clearEffects: vi.fn(), killSlash: vi.fn(), openingBanner: vi.fn(), victoryFX: vi.fn() }));
@@ -65,4 +65,16 @@ it('重开时废弃上一局的 AI 结果，新一局照常思考', async () => 
   await Promise.resolve(); expect(c.board.moveCount).toBe(1);
   resolveOld({ move: { x: 0, y: 0 }, candidates: [], score: 0 }); await Promise.resolve();
   expect(c.board.moveCount).toBe(1); expect(c.board.lastMove).toMatchObject({ x: 7, y: 7 }); c.dispose();
+});
+
+it('AI 落子优先于动画侦测，分析面板复用同一轮搜索', async () => {
+  mocks.think.mockImplementation(() => new Promise(() => {}));
+  const c = new GameController({ size: 15, rules: 'freestyle', clockMode: 'none', difficulty: 'master', black: 'human', white: 'ai', humanColor: 1 });
+  c.start();
+  c.applySequence([{ x: 7, y: 7 }, { x: 7, y: 8 }, { x: 8, y: 6 }]);
+  expect(c.isThinking).toBe(true);
+  expect(mocks.think.mock.invocationCallOrder[0]).toBeLessThan(mocks.detect.mock.invocationCallOrder[0]);
+  await c.refreshAnalysis();
+  expect(mocks.think).toHaveBeenCalledTimes(1);
+  c.dispose();
 });

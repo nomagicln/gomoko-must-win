@@ -130,6 +130,7 @@ export class GameController {
   /** 开局 / 重开 */
   start(config?: Partial<GameConfig>): void {
     this.revision++;
+    this.ai.cancel();
     this.thinking = false;
     this.listeners.onThinking?.(false);
     clearEffects();
@@ -256,15 +257,15 @@ export class GameController {
     // 2. 威胁提示
     this.emitThreats();
 
-    // 3. 杀局侦测：刚落下这一手的人是否已经布成必胜之局
+    // 3. 棋钟交到下一方手上（第一手落下后才开始走表）
     const toMove = this.board.turn;
-    if (lastMove && this.board.moveCount >= 3) void this.detectWinSignal(lastMove.player);
-
-    // 4. 棋钟交到下一方手上（第一手落下后才开始走表，避免开局前就掉时间）
     if (this.board.moveCount >= 1) this.clock.switchTo(toMove);
 
-    // 5. 若轮到 AI，开始思考
+    // 4. 落子搜索优先进入 Worker，动画侦测不阻塞 AI 回应。
     if (!remote || seatOf(this.config, toMove) === 'ai') this.maybeThink();
+
+    // 5. 杀局侦测：刚落下这一手的人是否已经布成必胜之局
+    if (lastMove && this.board.moveCount >= 3) void this.detectWinSignal(lastMove.player);
 
     if (this.analysisOn) void this.refreshAnalysis();
   }
@@ -419,6 +420,7 @@ export class GameController {
   undo(count?: number): boolean {
     if (this.board.moveCount === 0) return false;
     this.revision++;
+    this.ai.cancel();
     this.thinking = false;
     this.listeners.onThinking?.(false);
     clearEffects();
@@ -463,6 +465,8 @@ export class GameController {
   }
 
   private handleGameOver(status: GameStatus, win: WinInfo | null, silent = false): void {
+    this.revision++;
+    this.ai.cancel();
     this.thinking = false;
     this.clock.stop();
     if (!silent) clearToasts();
@@ -532,6 +536,8 @@ export class GameController {
     const revision = this.revision, at = this.board.moveCount;
     const heat = this.computeHeat(toMove);
     this.listeners.onAnalysis?.(heat, null, 0);
+    // AI 正在为同一局面搜索，直接复用 maybeThink 的结果。
+    if (this.thinking) return;
     try {
       const outcome = await this.ai.think({
         cells: this.board.rawCells(),
@@ -539,6 +545,7 @@ export class GameController {
         turn: toMove,
         rules: this.config.rules,
         difficulty: this.config.difficulty,
+        timeMs: 600,
       });
       if (this.disposed || revision !== this.revision || at !== this.board.moveCount || !this.analysisOn) return;
       this.emitAnalysis(heat, outcome.candidates, outcome.score, toMove);

@@ -24,32 +24,32 @@ export const DIFFICULTIES: DifficultySpec[] = [
     name: '入门',
     en: 'Novice',
     desc: '只看一两步，会漏杀也会犯错，适合刚学会规则的朋友。',
-    strength: '业余 5 级',
+    strength: '适合初学',
     config: { maxDepth: 2, timeMs: 220, branchLimit: 6, randomness: 0.72, useVcf: false, vcfDepth: 0 },
   },
   {
     id: 'easy',
     name: '进阶',
     en: 'Adept',
-    desc: '会算四步，懂得封堵冲四与活三，偶尔走出好手。',
-    strength: '业余 1 段',
-    config: { maxDepth: 4, timeMs: 750, branchLimit: 10, randomness: 0.3, useVcf: true, vcfDepth: 4 },
+    desc: '会封冲四、判断活三，也能找到短链连续冲四的杀法。',
+    strength: '基础攻防',
+    config: { maxDepth: 4, timeMs: 750, branchLimit: 10, randomness: 0.18, useVcf: true, vcfDepth: 4 },
   },
   {
     id: 'hard',
     name: '大师',
     en: 'Master',
-    desc: '八层深算，能识别双活三与四三杀，攻守均衡。',
-    strength: '业余 4 段',
-    config: { maxDepth: 8, timeMs: 1800, branchLimit: 12, randomness: 0.05, useVcf: true, vcfDepth: 10 },
+    desc: '更深的攻防搜索，识别四三与双威胁，主动争取先手。',
+    strength: '战术挑战',
+    config: { maxDepth: 12, timeMs: 1600, branchLimit: 14, randomness: 0, useVcf: true, vcfDepth: 14 },
   },
   {
     id: 'master',
     name: '宗师',
     en: 'Grandmaster',
-    desc: '十二层深算 + 长链 VCF 算杀，几乎不会给你第二次机会。',
-    strength: '专业棋手',
-    config: { maxDepth: 12, timeMs: 4200, branchLimit: 14, randomness: 0, useVcf: true, vcfDepth: 16 },
+    desc: '更宽的候选与长链连续冲四算杀，兼顾反先、防守与进攻。',
+    strength: '最强挑战',
+    config: { maxDepth: 16, timeMs: 3500, branchLimit: 18, randomness: 0, useVcf: true, vcfDepth: 22 },
   },
 ];
 
@@ -104,7 +104,7 @@ export function thinkSync(req: ThinkRequest): SearchOutcome {
 }
 
 export function detectSync(req: DetectRequest): ForcedWin | null {
-  return detectForcedWin(req.cells, req.turn, configFor({ ...req, timeMs: 500 }));
+  return detectForcedWin(req.cells, req.turn, configFor({ ...req, timeMs: 180 }));
 }
 
 interface Pending {
@@ -123,10 +123,18 @@ export class AIClient {
   private disposed = false;
 
   constructor() {
+    this.createWorker();
+  }
+
+  private createWorker(): void {
     try {
-      this.worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
-      this.worker.onmessage = (e: MessageEvent<WorkerResponse>) => this.onMessage(e.data);
-      this.worker.onerror = () => {
+      const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+      this.worker = worker;
+      worker.onmessage = (e: MessageEvent<WorkerResponse>) => {
+        if (this.worker === worker) this.onMessage(e.data);
+      };
+      worker.onerror = () => {
+        if (this.worker !== worker) return;
         // Worker 内部错误：清理挂起的请求，让调用方走兜底路径
         for (const [, p] of this.pending) p.reject(new Error('AI worker error'));
         this.pending.clear();
@@ -136,6 +144,16 @@ export class AIClient {
     } catch {
       this.worker = null;
     }
+  }
+
+  /** 重开 / 悔棋时停止旧计算，避免新一局排在旧搜索后面。 */
+  cancel(): void {
+    if (this.disposed || this.pending.size === 0) return;
+    this.worker?.terminate();
+    this.worker = null;
+    for (const pending of this.pending.values()) pending.reject(new DOMException('AI calculation cancelled', 'AbortError'));
+    this.pending.clear();
+    this.createWorker();
   }
 
   get usingWorker(): boolean {
@@ -151,7 +169,8 @@ export class AIClient {
   }
 
   think(req: ThinkRequest): Promise<SearchOutcome> {
-    if (!this.worker || this.disposed) return Promise.resolve(thinkSync(req));
+    if (this.disposed) return Promise.reject(new Error('AI client disposed'));
+    if (!this.worker) return Promise.resolve(thinkSync(req));
     const id = ++this.seq;
     const payload: ThinkRequest = { ...req, cells: req.cells.slice() };
     return new Promise<SearchOutcome>((resolve, reject) => {
@@ -161,7 +180,8 @@ export class AIClient {
   }
 
   detect(req: DetectRequest): Promise<ForcedWin | null> {
-    if (!this.worker || this.disposed) return Promise.resolve(detectSync(req));
+    if (this.disposed) return Promise.reject(new Error('AI client disposed'));
+    if (!this.worker) return Promise.resolve(detectSync(req));
     const id = ++this.seq;
     const payload: DetectRequest = { ...req, cells: req.cells.slice() };
     return new Promise<ForcedWin | null>((resolve, reject) => {
@@ -174,6 +194,7 @@ export class AIClient {
     this.disposed = true;
     this.worker?.terminate();
     this.worker = null;
+    for (const pending of this.pending.values()) pending.reject(new DOMException('AI client disposed', 'AbortError'));
     this.pending.clear();
   }
 }
