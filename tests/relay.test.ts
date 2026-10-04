@@ -72,4 +72,15 @@ describe('Render 房间传输', () => {
     socket.dispatchEvent(new Event('error'));
     expect(onError).toHaveBeenCalledWith(expect.stringContaining('返回大厅')); expect(onClose).not.toHaveBeenCalled();
   });
+  it('Render 唤醒时的升级失败自动重试，旧连接事件不打断重试成功的房间', async () => {
+    const onError = vi.fn();
+    const pending = RelaySession.host('ABC23', { onError }, url);
+    const cold = Socket.sockets[0]; cold.dispatchEvent(new Event('error'));
+    await vi.advanceTimersByTimeAsync(1500);
+    const warm = Socket.sockets[1]; warm.open(); warm.receive({ t: 'created' }); const session = await pending;
+    cold.dispatchEvent(new Event('close')); expect(onError).not.toHaveBeenCalled();
+    warm.receive({ t: 'peer-joined' }); expect(session.connected).toBe(true);
+    session.close(); expect(vi.getTimerCount()).toBe(0);
+  });
+
 });
