@@ -174,10 +174,15 @@ export function modal(options: ModalOptions): () => void {
   else bodyWrap.appendChild(options.body);
   panel.appendChild(bodyWrap);
 
+  const previousFocus = document.activeElement as HTMLElement | null;
+  let closed = false;
   const close = () => {
+    if (closed) return;
+    closed = true;
     host.remove();
     document.removeEventListener('keydown', onKey);
     options.onClose?.();
+    if (previousFocus?.isConnected) previousFocus.focus();
   };
   const actions = options.actions ?? [{ label: '知道了', kind: 'ghost' as const, onClick: close }];
   panel.appendChild(
@@ -189,6 +194,7 @@ export function modal(options: ModalOptions): () => void {
           class: `btn ${a.kind === 'primary' ? 'btn--primary' : a.kind === 'danger' ? 'btn--danger' : 'btn--ghost'}`,
           type: 'button',
           onclick: () => {
+            close();
             a.onClick();
           },
         }, a.label),

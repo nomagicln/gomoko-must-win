@@ -66,6 +66,10 @@ export class PlayView implements View {
   private forcedPath: Point[] | null = null;
   private lastWin: WinInfo | null = null;
   private thinking = false;
+  private bookMatch: BookMatch | null = null;
+  private thinkingCandidates: SearchOutcome['candidates'] | null = null;
+  private thinkingScore = 0;
+  private tacticalNotes: Array<{ point: Point; text: string; tone: string; side?: Player }> = [];
 
   /** 复盘状态 */
   private reviewIndex = 0;
@@ -591,6 +595,15 @@ export class PlayView implements View {
           this.drawNumbers();
         }
       }),
+      switchRow('落子提示', prefs.hints !== false, (v) => {
+        prefs.hints = v;
+        this.ctx.savePrefs();
+        this.syncRenderer();
+        this.renderNotes(this.tacticalNotes);
+        this.renderThink(this.thinkingCandidates, this.thinkingScore);
+        this.renderMoves();
+        if (this.bookMatch) this.renderBookChip(this.bookMatch);
+      }),
       el(
         'div',
         { class: 'row wrap' },
@@ -846,9 +859,11 @@ export class PlayView implements View {
       moves: c.board.moves,
       lastMove: c.board.lastMove ?? null,
       winLine: this.lastWin?.line ?? null,
-      heat: this.heat,
-      markers: this.markers,
-      winPath: this.forcedPath,
+      heat: this.ctx.prefs.hints !== false ? this.heat : [],
+      markers: this.ctx.prefs.hints !== false ? this.markers : this.markers.filter(m => m.kind === 'forbidden'),
+      winPath: this.ctx.prefs.hints !== false ? this.forcedPath : null,
+      ghost: !c.isOver && this.ctx.prefs.hints !== false && this.bookMatch?.nextMoves.length === 1
+        ? { ...this.bookMatch.nextMoves[0], player: c.turn } : null,
       interactive: !c.isOver && !this.reviewing,
     });
     if (this.ctx.prefs.showNumbers) this.drawNumbers();
@@ -1005,7 +1020,7 @@ export class PlayView implements View {
 
   private syncHoverNote(p: Point): void {
     const c = this.controller;
-    if (!c || !this.notesList) return;
+    if (!c || !this.notesList || this.ctx.prefs.hints === false) return;
     const text = `${coordText(p, c.size)}：${c.pointNote(p, c.turn)}`;
     let tip = this.hoverNote;
     if (!tip) {
@@ -1027,8 +1042,13 @@ export class PlayView implements View {
   private moveList!: HTMLElement;
 
   private renderNotes(notes: Array<{ point: Point; text: string; tone: string; side?: Player }>): void {
+    this.tacticalNotes = notes;
     if (!this.notesList) return;
     clear(this.notesList);
+    if (this.ctx.prefs.hints === false) {
+      this.notesList.appendChild(el('div', { class: 'faint', text: '落子提示已关闭，可在对局设置中开启。' }));
+      return;
+    }
     if (notes.length === 0) {
       this.notesList.appendChild(el('div', { class: 'faint', style: { fontSize: 'var(--step--1)' }, text: '局面平稳，暂无必须应对的威胁。' }));
       return;
@@ -1047,8 +1067,14 @@ export class PlayView implements View {
   }
 
   private renderThink(candidates: SearchOutcome['candidates'] | null, score: number): void {
+    this.thinkingCandidates = candidates;
+    this.thinkingScore = score;
     if (!this.thinkList) return;
     clear(this.thinkList);
+    if (this.ctx.prefs.hints === false) {
+      this.thinkList.appendChild(el('div', { class: 'faint', text: '落子提示已关闭。' }));
+      return;
+    }
     if (!candidates || candidates.length === 0) {
       this.thinkList.appendChild(el('div', { class: 'faint', style: { fontSize: 'var(--step--1)' }, text: '开启「分析」或请求「提示」后，这里会显示候选点与评分。' }));
       return;
@@ -1113,13 +1139,14 @@ export class PlayView implements View {
     const chip = el('div', {
       class: 'note note--win',
       style: { marginTop: 'var(--sp-2)' },
-    }, el('span', { class: 'note__dot' }), el('span', { text: `定式：${book.openingName} · ${book.variationName}${book.nextMoves.length ? ` · 谱着 ${book.nextMoves.map((p) => coordText(p, this.controller?.size ?? 15)).join('/')}` : ''}` }));
+    }, el('span', { class: 'note__dot' }), el('span', { text: `定式：${book.openingName} · ${book.variationName}${book.nextMoves.length && this.ctx.prefs.hints !== false ? ` · 谱着 ${book.nextMoves.map((p) => coordText(p, this.controller?.size ?? 15)).join('/')}` : ''}` }));
     this.moveList.prepend(chip);
   }
 
   private syncBook(match: BookMatch | null): void {
+    this.bookMatch = match;
     if (!this.renderer) return;
-    const ghost = match && match.nextMoves.length === 1 && this.ctx.prefs.hints !== false
+    const ghost = !this.controller?.isOver && match && match.nextMoves.length === 1 && this.ctx.prefs.hints !== false
       ? { ...match.nextMoves[0], player: this.controller!.turn }
       : null;
     this.renderer.setState({ ghost });
@@ -1171,6 +1198,13 @@ export class PlayView implements View {
     if (!c.canPlay(c.turn) && this.options.mode !== 'ai') {
       toast('等待对手落子', 'info', 1200);
       return;
+    }
+    if (this.ctx.prefs.hints === false) {
+      this.ctx.prefs.hints = true;
+      this.ctx.savePrefs();
+      const toggle = this.root.querySelector<HTMLInputElement>('input[aria-label="落子提示"]');
+      if (toggle) toggle.checked = true;
+      this.renderNotes(this.tacticalNotes);
     }
     toast('正在为你计算…', 'info', 900);
     const p = await c.requestHint();
@@ -1412,7 +1446,7 @@ function field(label: string, control: HTMLElement): HTMLElement {
 }
 
 function switchRow(label: string, value: boolean, onChange: (v: boolean) => void): HTMLElement {
-  const input = el('input', { type: 'checkbox', checked: value, onchange: (e: Event) => onChange((e.target as HTMLInputElement).checked) });
+  const input = el('input', { type: 'checkbox', 'aria-label': label, checked: value, onchange: (e: Event) => onChange((e.target as HTMLInputElement).checked) });
   return el(
     'label',
     { class: 'switch' },

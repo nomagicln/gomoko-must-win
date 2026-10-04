@@ -1,12 +1,14 @@
 /**
- * 在线对战传输层：基于 WebRTC（PeerJS）的点对点连接。
+ * 在线对战传输层：默认 Render 房间中转，可配置 PeerJS 点对点连接。
  *
- * 为什么是 P2P：本站托管在 GitHub Pages 上，没有自己的后端。
- * PeerJS 只提供一次性的信令握手，之后所有着法直接在两位玩家的浏览器之间传输，
- * 因此既不需要服务器，也没有中间人能看到棋谱。
+ * 默认使用现有 Render 服务转发对局消息，避开跨网络 NAT 协商失败。
+ * 中转仅维护两位玩家的连接，不保存棋谱。PeerJS 用于显式选择的点对点模式。
  *
  * peerjs 通过动态 import 按需加载，未进入「联机」页面时不会增加首屏体积。
  */
+
+import { peerOptions, relayURL } from './config';
+import { RelaySession } from './relay';
 
 export type NetRole = 'host' | 'guest';
 
@@ -37,6 +39,15 @@ export interface NetHandlers {
 
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const PREFIX = 'inkgomoku-v1-';
+const SIGNAL_TIMEOUT = 12000;
+const NEGOTIATION_TIMEOUT = 30000;
+const NEGOTIATION_ERROR = '双方网络未能建立连接，请重试；仍失败时可尝试同一 Wi-Fi 或其他网络';
+
+function connectionError(err?: { type?: string; message?: string }): string {
+  if (err?.type === 'negotiation-failed' || /Negotiation of connection/i.test(err?.message ?? '')) return NEGOTIATION_ERROR;
+  if (err?.type === 'connection-closed') return '连接已断开';
+  return err?.message ?? '连接异常';
+}
 
 export function makeRoomCode(len = 5): string {
   let out = '';
@@ -68,13 +79,35 @@ interface DataConnectionLike {
   peer?: string;
 }
 
-export class NetSession {
+export interface NetSession {
+  readonly role: NetRole;
+  readonly code: string;
+  readonly connected: boolean;
+  readonly peerId: string;
+  send(msg: NetMessage): void;
+  close(): void;
+}
+
+/** Render 房间中转避开 NAT 限制；无中转配置时可继续使用 PeerJS。 */
+export const NetSession = {
+  host: (code: string, handlers: NetHandlers): Promise<NetSession> => {
+    const url = relayURL();
+    return url ? RelaySession.host(code, handlers, url) : PeerSession.host(code, handlers);
+  },
+  join: (code: string, handlers: NetHandlers): Promise<NetSession> => {
+    const url = relayURL();
+    return url ? RelaySession.join(code, handlers, url) : PeerSession.join(code, handlers);
+  },
+};
+
+export class PeerSession implements NetSession {
   readonly role: NetRole;
   readonly code: string;
   private peer: PeerLike;
   private conn: DataConnectionLike | null = null;
   private handlers: NetHandlers;
   private pingTimer = 0;
+  private negotiationTimer = 0;
   private closed = false;
   private pendingQueue: NetMessage[] = [];
 
@@ -99,18 +132,22 @@ export class NetSession {
    */
   static async host(code: string, handlers: NetHandlers): Promise<NetSession> {
     const Peer = await loadPeer();
-    const peer = new Peer(PREFIX + code, { debug: 0 }) as unknown as PeerLike;
-    const session = new NetSession('host', code, peer, handlers);
+    const peer = new Peer(PREFIX + code, peerOptions()) as unknown as PeerLike;
+    const session = new PeerSession('host', code, peer, handlers);
 
+    let registered = false;
     try {
       await new Promise<void>((resolve, reject) => {
-        const timer = window.setTimeout(() => reject(new Error('信令服务器连接超时，请检查网络后重试')), 12000);
+        const timer = window.setTimeout(() => reject(new Error('信令服务器连接超时，请检查网络后重试')), SIGNAL_TIMEOUT);
         peer.on('open', (() => {
           window.clearTimeout(timer);
+          registered = true;
           resolve();
         }) as never);
         peer.on('error', ((err: { type?: string; message?: string }) => {
           window.clearTimeout(timer);
+          if (session.closed) return;
+          if (registered) { handlers.onError?.(connectionError(err)); return; }
           const type = err?.type ?? '';
           if (type === 'unavailable-id') reject(new Error('房间码已被占用，请换一个'));
           else if (type === 'peer-unavailable') reject(new Error('无法连接到对手'));
@@ -139,37 +176,36 @@ export class NetSession {
   /** 加入房间 */
   static async join(code: string, handlers: NetHandlers): Promise<NetSession> {
     const Peer = await loadPeer();
-    const peer = new Peer(undefined, { debug: 0 }) as unknown as PeerLike;
-    const session = new NetSession('guest', code, peer, handlers);
+    const peer = new Peer(undefined, peerOptions()) as unknown as PeerLike;
+    const session = new PeerSession('guest', code, peer, handlers);
 
+    let settled = false;
     try {
       await new Promise<void>((resolve, reject) => {
-        let openTimer = 0;
-        const fail = (err: Error) => {
+        const finish = (err?: Error) => {
+          if (settled) return;
+          settled = true;
           window.clearTimeout(timer);
-          window.clearTimeout(openTimer);
-          reject(err);
+          if (err) reject(err); else resolve();
         };
-        const timer = window.setTimeout(() => fail(new Error('信令服务器连接超时，请检查网络后重试')), 12000);
+        const timer = window.setTimeout(() => finish(new Error('信令服务器连接超时，请检查网络后重试')), SIGNAL_TIMEOUT);
         peer.on('open', (() => {
+          if (settled || session.closed) return;
           window.clearTimeout(timer);
-          const conn = peer.connect(PREFIX + code, { reliable: true });
-          session.attach(conn);
-          openTimer = window.setTimeout(() => {
-            if (!conn.open) fail(new Error('房间不存在、已满或对手已离线'));
-          }, 12000);
-          conn.on('open', (() => {
-            window.clearTimeout(openTimer);
-            resolve();
-          }) as never);
-          conn.on('error', ((err: { message?: string }) => fail(new Error(err?.message ?? '加入房间失败'))) as never);
-          conn.on('close', (() => fail(new Error('房间已满或房主已离开'))) as never);
+          try {
+            const conn = peer.connect(PREFIX + code, { reliable: true });
+            session.attach(conn, () => finish(), err => finish(err));
+          } catch (err) {
+            finish(new Error(connectionError(err as { message?: string })));
+          }
         }) as never);
         peer.on('error', ((err: { type?: string; message?: string }) => {
-          if (err?.type === 'peer-unavailable') fail(new Error('没有找到该房间，请确认房间码'));
+          if (session.closed) return;
+          if (settled) { handlers.onError?.(connectionError(err)); return; }
+          if (err?.type === 'peer-unavailable') finish(new Error('没有找到该房间，请确认房间码'));
           else if (err?.type === 'network' || err?.type === 'server-error') {
-            fail(new Error('无法连接联机服务器（可能被网络环境拦截），可先用「本地双人」对弈'));
-          } else fail(new Error(err?.message ?? '加入房间失败'));
+            finish(new Error('无法连接联机服务器，请检查网络后重试'));
+          } else finish(new Error(connectionError(err)));
         }) as never);
       });
     } catch (err) {
@@ -179,19 +215,44 @@ export class NetSession {
     return session;
   }
 
-  private attach(conn: DataConnectionLike): void {
+  private attach(conn: DataConnectionLike, onReady?: () => void, onFailure?: (err: Error) => void): void {
     this.conn = conn;
+    let opened = false;
+    // 只释放本次连接，迟到的 close/error 不得影响重试加入的对手。
+    const release = (message: string) => {
+      if (this.closed || this.conn !== conn) return;
+      this.conn = null;
+      window.clearTimeout(this.negotiationTimer);
+      window.clearInterval(this.pingTimer);
+      this.pendingQueue = [];
+      if (!opened) {
+        onFailure?.(new Error(message));
+        if (this.role === 'host') this.handlers.onError?.(`${message}。房间码保持有效，等待对手重新加入。`);
+      } else {
+        this.handlers.onClose?.();
+      }
+      conn.close();
+    };
+    // 房主等待没人加入不设超时；收到连接后才开始计时。给跨网 ICE 足够时间。
+    this.negotiationTimer = window.setTimeout(() => release(NEGOTIATION_ERROR), NEGOTIATION_TIMEOUT);
     conn.on('open', (() => {
-      if (this.closed) { conn.close(); return; }
+      if (this.closed || this.conn !== conn) { conn.close(); return; }
+      if (opened) return;
+      opened = true;
+      window.clearTimeout(this.negotiationTimer);
       this.handlers.onOpen?.(this);
-      if (this.closed) return;
+      if (this.closed || this.conn !== conn) {
+        onFailure?.(new Error('房间已满或房主已离开'));
+        return;
+      }
+      onReady?.();
       for (const msg of this.pendingQueue) this.rawSend(msg);
       this.pendingQueue = [];
       this.startPing();
     }) as never);
     conn.on('data', ((data: unknown) => {
       const msg = data as NetMessage;
-      if (this.closed || !msg || typeof msg !== 'object') return;
+      if (this.closed || this.conn !== conn || !opened || !msg || typeof msg !== 'object') return;
       if (msg.t === 'ping') {
         this.rawSend({ t: 'pong', ts: msg.ts });
         return;
@@ -202,12 +263,8 @@ export class NetSession {
       }
       this.handlers.onMessage?.(msg);
     }) as never);
-    conn.on('close', (() => {
-      window.clearInterval(this.pingTimer);
-      this.pendingQueue = [];
-      if (!this.closed) this.handlers.onClose?.();
-    }) as never);
-    conn.on('error', ((err: { message?: string }) => { if (!this.closed) this.handlers.onError?.(err?.message ?? '连接异常'); }) as never);
+    conn.on('close', (() => release('对手取消了连接或已离开')) as never);
+    conn.on('error', ((err: { type?: string; message?: string }) => release(connectionError(err))) as never);
   }
 
   private startPing(): void {
@@ -240,6 +297,7 @@ export class NetSession {
     this.closed = true;
     this.pendingQueue = [];
     window.clearInterval(this.pingTimer);
+    window.clearTimeout(this.negotiationTimer);
     try {
       this.conn?.close();
     } catch {

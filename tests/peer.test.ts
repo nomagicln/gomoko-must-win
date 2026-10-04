@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { NetSession } from '../src/net/peer';
+import { PeerSession as NetSession, type NetSession as Session } from '../src/net/peer';
 
 class Emitter {
   private events = new Map<string, Array<(arg: unknown) => void>>();
@@ -30,7 +30,7 @@ const hello = { t: 'hello' as const, name: '慕容听雪', size: 15, rules: 'fre
 
 describe('联机传输生命周期', () => {
   it('访客连接回调得到可发送的会话，握手不依赖 Promise 赋值', async () => {
-    const onOpen = vi.fn((session: NetSession) => session.send(hello));
+    const onOpen = vi.fn((session: Session) => session.send(hello));
     const pending = NetSession.join('ABC23', { onOpen });
     const peer = await loaded(); peer.emit('open'); peer.conn.connect();
     const session = await pending;
@@ -53,8 +53,8 @@ describe('联机传输生命周期', () => {
   });
   it('等待房间超时后清理资源', async () => {
     const pending = NetSession.join('ABC23', {});
-    const failure = expect(pending).rejects.toThrow('房间不存在');
-    const peer = await loaded(); peer.emit('open'); await vi.advanceTimersByTimeAsync(12000); await failure;
+    const failure = expect(pending).rejects.toThrow('双方网络未能建立连接');
+    const peer = await loaded(); peer.emit('open'); await vi.advanceTimersByTimeAsync(30000); await failure;
     expect(peer.destroy).toHaveBeenCalledTimes(1); expect(vi.getTimerCount()).toBe(0);
   });
   it('回调立即关闭会话时，不启动新的心跳或显示断线提示', async () => {
@@ -90,4 +90,35 @@ describe('联机传输生命周期', () => {
     expect(onClose).not.toHaveBeenCalled(); expect(onError).not.toHaveBeenCalled();
     expect(session.connected).toBe(true); session.close();
   });
+  it('协商失败释放房间座位，重试沿用房间码；旧连接事件不会打断新对手', async () => {
+    const onClose = vi.fn(), onError = vi.fn(), onMessage = vi.fn();
+    const pending = NetSession.host('ABC23', { onClose, onError, onMessage });
+    const peer = await loaded(); peer.emit('open'); const session = await pending;
+    const failed = new Connection(); peer.emit('connection', failed);
+    failed.emit('error', { type: 'negotiation-failed', message: 'Negotiation of connection to guest failed.' });
+    expect(onError).toHaveBeenCalledWith(expect.stringContaining('房间码保持有效'));
+    expect(onError.mock.calls[0][0]).not.toContain('Negotiation'); expect(onClose).not.toHaveBeenCalled();
+    const retry = new Connection(); peer.emit('connection', retry); retry.connect();
+    failed.emit('close'); failed.emit('error', { type: 'negotiation-failed' }); failed.emit('data', hello);
+    session.send(hello); expect(retry.send).toHaveBeenCalledWith(hello);
+    expect(session.connected).toBe(true); expect(onClose).not.toHaveBeenCalled(); expect(onMessage).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledOnce(); expect(vi.getTimerCount()).toBe(1); session.close();
+  });
+  it('等待时只有收到连接才开始超时，失效连接不会永久占住房间', async () => {
+    const onError = vi.fn(); const pending = NetSession.host('ABC23', { onError });
+    const peer = await loaded(); peer.emit('open'); const session = await pending;
+    await vi.advanceTimersByTimeAsync(120000); expect(onError).not.toHaveBeenCalled();
+    const abandoned = new Connection(); peer.emit('connection', abandoned);
+    await vi.advanceTimersByTimeAsync(30000); expect(abandoned.close).toHaveBeenCalledOnce();
+    const retry = new Connection(); peer.emit('connection', retry); retry.connect();
+    expect(session.connected).toBe(true); session.close(); expect(vi.getTimerCount()).toBe(0);
+  });
+  it('访客收到协商失败时显示可理解的提示并释放所有资源', async () => {
+    const pending = NetSession.join('ABC23', {});
+    const failure = expect(pending).rejects.toThrow('双方网络未能建立连接');
+    const peer = await loaded(); peer.emit('open');
+    peer.conn.emit('error', { type: 'negotiation-failed', message: 'Negotiation of connection to host failed.' });
+    await failure; expect(peer.destroy).toHaveBeenCalledOnce(); expect(vi.getTimerCount()).toBe(0);
+  });
+
 });

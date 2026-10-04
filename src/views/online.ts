@@ -1,6 +1,6 @@
 /**
  * 双人对战：本地同屏，或通过房间码 / 邀请链接联机。
- * 没有后端，握手之外的一切都在两位玩家的浏览器之间直传。
+ * 默认通过 Render 房间服务转发着法，跨网络也无需协商点对点连接。
  */
 
 import { BLACK, WHITE, type Move, type Player, type RuleSet } from '../core/types';
@@ -254,7 +254,7 @@ export class OnlineView implements View {
     this.phase = 'hosting';
     this.myRole = 'host';
     this.setBusy(true);
-    this.setStatus('正在向信令服务器申请房间…');
+    this.setStatus('正在连接房间服务…首次唤醒可能需要约一分钟。');
     try {
       const session = await NetSession.host(code, this.handlers());
       if (this.disposed) { session.close(); return; }
@@ -265,7 +265,7 @@ export class OnlineView implements View {
       this.phase = 'lobby';
       this.setBusy(false);
       this.setStatus(err instanceof Error ? err.message : '创建房间失败', 'danger');
-      toast('联机服务不可用，也可以先本地双人', 'danger', 3000);
+      toast('房间服务连接失败，请稍后重试', 'danger', 3000);
     }
   }
 

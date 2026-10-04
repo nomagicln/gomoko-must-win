@@ -70,6 +70,7 @@ export class GameController {
   private analysisOn = false;
   private lastHint: Point | null = null;
   private destroyed = false;
+  private revision = 0;
   private readonly clock: Clock;
 
   constructor(config: GameConfig, listeners: GameListeners = {}) {
@@ -128,6 +129,9 @@ export class GameController {
 
   /** 开局 / 重开 */
   start(config?: Partial<GameConfig>): void {
+    this.revision++;
+    this.thinking = false;
+    this.listeners.onThinking?.(false);
     clearEffects();
     if (config) this.config = { ...this.config, ...config };
     this.board = new Board({ size: this.config.size, rules: this.config.rules });
@@ -152,6 +156,7 @@ export class GameController {
   }
 
   dispose(): void {
+    this.revision++;
     clearEffects();
     this.disposed = true;
     this.clock.dispose();
@@ -325,6 +330,7 @@ export class GameController {
   private async detectWinSignal(color: Player): Promise<void> {
     if (this.disposed || this.board.isOver) return;
     const at = this.board.moveCount;
+    const revision = this.revision;
     if (at - this.lastForceSignalPly < 4) return;
     try {
       const win = await this.ai.detect({
@@ -333,7 +339,7 @@ export class GameController {
         turn: color,
         rules: this.config.rules,
       });
-      if (this.disposed || !win || this.board.isOver) return;
+      if (this.disposed || revision !== this.revision || !win || this.board.isOver) return;
       if (this.board.moveCount !== at) return; // 局面已经变化，放弃这次播报
       this.lastForceSignalPly = at;
       const who = color === this.config.humanColor ? '你' : color === BLACK ? '黑棋' : '白棋';
@@ -351,6 +357,7 @@ export class GameController {
     if (seatOf(this.config, toMove) !== 'ai') return;
     if (this.board.isOver || this.thinking) return;
     this.thinking = true;
+    const revision = this.revision;
     const spec = difficultyById(this.config.difficulty);
     this.listeners.onThinking?.(true, `${spec.name}思考中`);
     const startedAt = Date.now();
@@ -362,7 +369,7 @@ export class GameController {
         rules: this.config.rules,
         difficulty: this.config.difficulty,
       });
-      if (this.disposed) return;
+      if (this.disposed || revision !== this.revision) return;
       this.thinking = false;
       this.listeners.onThinking?.(false);
       if (this.board.isOver || this.board.turn !== toMove) return;
@@ -375,6 +382,7 @@ export class GameController {
       }
       this.commit(move.x, move.y, toMove);
     } catch (err) {
+      if (this.disposed || revision !== this.revision) return;
       this.thinking = false;
       this.listeners.onThinking?.(false);
       toast(`AI 出错：${err instanceof Error ? err.message : String(err)}`, 'danger', 3200);
@@ -390,6 +398,7 @@ export class GameController {
     if (this.board.isOver) return null;
     const toMove = this.board.turn;
     const spec = difficultyById('hard');
+    const revision = this.revision, at = this.board.moveCount;
     const outcome = await this.ai.think({
       cells: this.board.rawCells(),
       size: this.size,
@@ -398,7 +407,7 @@ export class GameController {
       difficulty: 'hard',
       timeMs: Math.min(1200, spec.config.timeMs ?? 1200),
     });
-    if (this.disposed || !outcome.move) return null;
+    if (this.disposed || revision !== this.revision || at !== this.board.moveCount || this.board.isOver || !outcome.move) return null;
     this.lastHint = outcome.move;
     this.emitAnalysis(this.analysisOn ? [] : [], outcome.candidates, outcome.score, toMove);
     this.listeners.onStateChange?.();
@@ -409,6 +418,9 @@ export class GameController {
   /** 悔棋：AI 模式回退两手，人人模式回退一手 */
   undo(count?: number): boolean {
     if (this.board.moveCount === 0) return false;
+    this.revision++;
+    this.thinking = false;
+    this.listeners.onThinking?.(false);
     clearEffects();
     const n =
       count ??
@@ -517,6 +529,7 @@ export class GameController {
       return;
     }
     const toMove = this.board.turn;
+    const revision = this.revision, at = this.board.moveCount;
     const heat = this.computeHeat(toMove);
     this.listeners.onAnalysis?.(heat, null, 0);
     try {
@@ -527,7 +540,7 @@ export class GameController {
         rules: this.config.rules,
         difficulty: this.config.difficulty,
       });
-      if (this.disposed) return;
+      if (this.disposed || revision !== this.revision || at !== this.board.moveCount || !this.analysisOn) return;
       this.emitAnalysis(heat, outcome.candidates, outcome.score, toMove);
     } catch {
       /* 忽略 */
